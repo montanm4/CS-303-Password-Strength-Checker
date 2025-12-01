@@ -1,7 +1,7 @@
 #ifndef ZXCVBN_H_F98183CE2A01_INCLUDED
 #define ZXCVBN_H_F98183CE2A01_INCLUDED
 /**********************************************************************************
- * C implementation of the zxcvbn password strength estimation method.
+ * C++ implementation of the zxcvbn password strength estimation method.
  * Copyright (c) 2015-2017 Tony Evans
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,29 +24,9 @@
  *
  **********************************************************************************/
 
-/* If this is defined, the dictiononary data is read from file. When undefined */
-/* dictionary data is included in the source code. */
+/* If this is defined, the dictionary data is read from file. When undefined,
+ * dictionary data is included in the source code. */
 /*#define USE_DICT_FILE */
-
-/* If this is defined, C++ builds which read dictionary data from file will use */
-/* stdio FILE streams (and fopen,fread,fclose). When undefined, C++ builds will */
-/* use std::ifstream to read dictionary data. Ignored for C builds (stdio FILE  */
-/* streams are always used). */
-/*#define USE_FILE_IO */
-
-#ifndef __cplusplus
-/* C build. Use the standard malloc/free for heap memory */
-#include <stdlib.h>
-#define MallocFn(T,N) ((T *)malloc((N) * sizeof(T)))
-#define FreeFn(P)      free(P)
-
-#else
-
-/* C++ build. Use the new/delete operators for heap memory */
-#define MallocFn(T,N)   (new T[N])
-#define FreeFn(P)       (delete [] P)
-
-#endif
 
 /* Enum for the types of match returned in the Info arg to ZxcvbnMatch */
 typedef enum
@@ -69,7 +49,7 @@ typedef enum
 /* Linked list of information returned in the Info arg to ZxcvbnMatch */
 struct ZxcMatch
 {
-    int             Begin;   /* Char position of begining of match */
+    int             Begin;   /* Char position of beginning of match */
     int             Length;  /* Number of chars in the match */
     double          Entrpy;  /* The entropy of the match */
     double          MltEnpy; /* Entropy with additional allowance for multipart password */
@@ -86,13 +66,13 @@ extern "C" {
 #ifdef USE_DICT_FILE
 
 /**********************************************************************************
- * Read the dictionnary data from the given file. Returns 1 if OK, 0 if error.
+ * Read the dictionary data from the given file. Returns 1 if OK, 0 if error.
  * Called once at program startup.
  */
-int ZxcvbnInit(const char *);
+int ZxcvbnInit(const char *dictFile);
 
 /**********************************************************************************
- * Free the dictionnary data after use. Called once at program shutdown.
+ * Free the dictionary data after use. Called once at program shutdown.
  */
 void ZxcvbnUnInit(void);
 
@@ -108,7 +88,7 @@ void ZxcvbnUnInit(void);
  * The main password matching function. May be called multiple times.
  * The parameters are:
  *  Passwd      The password to be tested. Null terminated string.
- *  UserDict    User supplied dictionary words to be considered particulary bad. Passed
+ *  UserDict    User supplied dictionary words to be considered particularly bad. Passed
  *               as a pointer to array of string pointers, with null last entry (like
  *               the argv parameter to main()). May be null or point to empty array when
  *               there are no user dictionary words.
@@ -129,4 +109,4 @@ void ZxcvbnFreeInfo(ZxcMatch_t *Info);
 }
 #endif
 
-#endif
+#endif /* ZXCVBN_H_F98183CE2A01_INCLUDED */
