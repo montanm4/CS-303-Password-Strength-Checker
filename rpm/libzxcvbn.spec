@@ -3,7 +3,7 @@ Name: libzxcvbn
 Version: 2.4
 Release: 3%{?dist}
 License: MIT
-Source0: https://github.com/tsyrogit/zxcvbn-c/archive/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Source0: https://github.com/montanm4/CS-303-Password-Strength-Checker/archive/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 Patch1: libzxcvbn-2.4-makefile-install.patch
 
 # For some reason adding the libzxcvbn.so in the Makefile messes up the provides
@@ -55,6 +55,9 @@ make test
 %{_libdir}/libzxcvbn.a
 
 %changelog
+* Sun Nov 30 2025 Megan Montano <montanm4@my.erau.edu> 2.4-4
+- Adapted Erick Ogan's version 2.4-3 to work with my project repo
+
 * Sun Oct 6 2019 Erik Ogan <erik@stealthymonkeys.com> 2.4-3
 - Add make test to %check
 
