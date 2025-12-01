@@ -33,9 +33,9 @@
 #include <map>
 #include <memory>
 #include <limits>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
 
 using namespace std;
 
@@ -74,17 +74,14 @@ public:
     Node(const Node &);
     ~Node();
     Node & operator = (const Node &);
-    //bool operator == (const Node & r) const { return !IsEqual(r); }
-    //bool operator != (const Node & r) const { return !IsEqual(r); }
     void          SetEnd()           { mEnd = true; }
     bool          IsEnd() const      { return mEnd; }
     int           Height() const     { return mHeight; }
 
     // Scan the trie and count nodes
-    int           NodeCount()        { ClearCounted() ; return CountNodes(); }
+    int           NodeCount()        { ClearCounted(); return CountNodes(); }
 
-
-    int           CalcAddress()      { int a=0; ClearCounted(); a=CalcAddr(a, true); return CalcAddr(a, false); }
+    int           CalcAddress()      { int a = 0; ClearCounted(); a = CalcAddr(a, true); return CalcAddr(a, false); }
     Node         *GetParent()        { return mParent; }
     unsigned int  GetAddr() const    { return mAddr; }
     NodeMap_t::iterator ChildBegin() { return mChild.begin(); }
@@ -99,7 +96,6 @@ public:
     int         CalcHeight();
     NodeSPtr    AddChild(char);
     void        ChangeChild(NodeSPtr &, NodeSPtr &);
-//    bool        IsEqual(const Node &) const;
     void        ClearCounted();
     void        SetCounted()    { mCounted = true; }
     bool        IsCounted() const { return mCounted; }
@@ -129,17 +125,17 @@ static const TrieCheck::Check_t CrcTable[16] =
 };
 
 // Update the crc value with new data.
-void TrieCheck::operator () (const void *v, unsigned int Len)
+void TrieCheck::operator () (const void *v, unsigned int len)
 {
-    Check_t Crc = mCrc;
-    const unsigned char *Data = reinterpret_cast<const unsigned char *>(v);
-    while(Len--)
+    Check_t crc = mCrc;
+    const unsigned char *data = reinterpret_cast<const unsigned char *>(v);
+    while(len--)
     {
-        Crc = CrcTable[(Crc ^ (*Data >> 0)) & 0x0f] ^ (Crc >> 4);
-        Crc = CrcTable[(Crc ^ (*Data >> 4)) & 0x0f] ^ (Crc >> 4);
-        ++Data;
+        crc = CrcTable[(crc ^ (*data >> 0)) & 0x0f] ^ (crc >> 4);
+        crc = CrcTable[(crc ^ (*data >> 4)) & 0x0f] ^ (crc >> 4);
+        ++data;
     }
-    mCrc = Crc;
+    mCrc = crc;
 }
 
 Node::Node()
@@ -147,7 +143,7 @@ Node::Node()
     mEndings = -1;
     mHeight = -1;
     mEnd    = false;
-    mParent = 0;
+    mParent = nullptr;
 }
 
 Node::Node(const Node &r)
@@ -171,7 +167,6 @@ Node &Node::operator = (const Node & r)
     return *this;
 }
 
-
 /**********************************************************************************
  * Generate a checksum for the current node. Value also depends of the
  * checksum of any child nodes
@@ -182,20 +177,19 @@ TrieCheck::Check_t Node::CalcCheck()
     {
         // Not done this node before
         char c;
-        NodeMap_t::iterator It;
         mCheck.Init();
         // Include number of children
         c = mChild.size();
         mCheck(&c, sizeof c);
         // For each child include its character and node checksum
-        for(It = mChild.begin(); It != mChild.end(); ++It)
+        for(auto& [ch, node] : mChild)
         {
-            Check_t n = It->second->CalcCheck();
-            c = It->first;
+            Check_t n = node->CalcCheck();
+            c = ch;
             mCheck(&c, sizeof c);
             mCheck(&n, sizeof n);
         }
-        // Finally include whether this node is an ending in the chaecksum
+        // Finally include whether this node is an ending in the checksum
         c = mEnd;
         mCheck(&c, sizeof c);
     }
@@ -209,13 +203,12 @@ int Node::CalcEndings()
 {
     if (mEndings < 0)
     {
-        // Not already done this node,so calculate the ends
+        // Not already done this node, so calculate the ends
         int n = 0;
-        NodeMap_t::iterator It;
-        // Number of endings is sum of the endings of the child nodes and plus this node if it ends a word
-        for(It = mChild.begin(); It != mChild.end(); ++It)
-            n += It->second->CalcEndings();
-        n += !!mEnd;
+        // Number of endings is sum of the endings of the child nodes plus this node if it ends a word
+        for(auto& [ch, node] : mChild)
+            n += node->CalcEndings();
+        n += static_cast<int>(mEnd);
         mEndings = n;
     }
     return mEndings;
@@ -228,17 +221,16 @@ int Node::CalcHeight()
 {
     if (mHeight < 0)
     {
-        // Not already done this node,so calculate the height
-        int Hi = 0;
-        NodeMap_t::iterator It;
+        // Not already done this node, so calculate the height
+        int hi = 0;
         // Get height of all child nodes, remember the highest
-        for(It = mChild.begin(); It != mChild.end(); ++It)
+        for(auto& [ch, node] : mChild)
         {
-            int i = It->second->CalcHeight();
-            if (i >= Hi)
-                Hi = i+1;
+            int i = node->CalcHeight();
+            if (i >= hi)
+                hi = i + 1;
         }
-        mHeight = Hi;
+        mHeight = hi;
     }
     return mHeight;
 }
@@ -248,10 +240,9 @@ int Node::CalcHeight()
  */
 void Node::ClearCounted()
 {
-    NodeMap_t::iterator It;
     mCounted = false;
-    for(It = mChild.begin(); It != mChild.end(); ++It)
-        It->second->ClearCounted();
+    for(auto& [ch, node] : mChild)
+        node->ClearCounted();
 }
 
 /**********************************************************************************
@@ -264,31 +255,28 @@ int Node::CountNodes()
     if (mCounted)
         return 0;
     mCounted = true;
-    NodeMap_t::iterator It;
     int i = 1; // 1 for this node
 
     // Add the child nodes
-    for(It = mChild.begin(); It != mChild.end(); ++It)
-        i += It->second->CountNodes();
+    for(auto& [ch, node] : mChild)
+        i += node->CountNodes();
     return i;
 }
 
 /**********************************************************************************
  * Calculate the final node address
  */
-int Node::CalcAddr(int Start, bool ManyEnds)
+int Node::CalcAddr(int start, bool manyEnds)
 {
-    NodeMap_t::iterator It;
-
-    if (!(mCounted || (ManyEnds && (mEndings < 256))))
+    if (!(mCounted || (manyEnds && (mEndings < 256))))
     {
         mCounted = true;
-        mAddr = Start++;
+        mAddr = start++;
     }
-    for(It = mChild.begin(); It != mChild.end(); ++It)
-        Start = It->second->CalcAddr(Start, ManyEnds);
+    for(auto& [ch, node] : mChild)
+        start = node->CalcAddr(start, manyEnds);
 
-    return Start;
+    return start;
 }
 
 /**********************************************************************************
@@ -296,47 +284,42 @@ int Node::CalcAddr(int Start, bool ManyEnds)
  */
 NodeSPtr Node::AddChild(char c)
 {
-    NodeMap_t::iterator It;
     // Find character in map of child nodes
-    It = mChild.find(c);
-    if (It == mChild.end())
+    auto it = mChild.find(c);
+    if (it == mChild.end())
     {
         // New character, create new child node
-        NodeSPtr a(new Node);
+        NodeSPtr a = make_shared<Node>();
         a->mParent = this;
-        std::pair<char, NodeSPtr> x(c, a);
-        std::pair<NodeMap_t::iterator, bool> y = mChild.insert(x);
-        It = y.first;
+        auto result = mChild.insert({c, a});
+        it = result.first;
     }
-    return It->second;
+    return it->second;
 }
 
 /**********************************************************************************
  * Find the child node which corresponds to the given character.
  */
-NodeSPtr Node::FindChild(char Ch)
+NodeSPtr Node::FindChild(char ch)
 {
-    NodeMap_t::iterator It;
-    It = mChild.find(Ch);
-    if (It == mChild.end())
+    auto it = mChild.find(ch);
+    if (it == mChild.end())
         return NodeSPtr();
-    return It->second;
+    return it->second;
 }
 
 /**********************************************************************************
  * Replace the current child node (old param) with a new child (Replace param),
  * and update the new child parent.
  */
-void Node::ChangeChild(NodeSPtr & Replace, NodeSPtr & Old)
+void Node::ChangeChild(NodeSPtr & replace, NodeSPtr & oldNode)
 {
-    NodeMap_t::iterator It;
-    for(It = mChild.begin(); It != mChild.end(); ++It)
+    for(auto& [ch, node] : mChild)
     {
-        NodeSPtr p = It->second;
-        if (p == Old)
+        if (node == oldNode)
         {
-            It->second = Replace;
-            Replace->mParent = this;
+            node = replace;
+            replace->mParent = this;
             break;
         }
     }
@@ -347,14 +330,12 @@ void Node::ChangeChild(NodeSPtr & Replace, NodeSPtr & Old)
  */
 std::string Node::GetChildChars()
 {
-    NodeMap_t::iterator It;
-    std::string Result;
-    for(It = mChild.begin(); It != mChild.end(); ++It)
+    std::string result;
+    for(auto& [ch, node] : mChild)
     {
-        char c = It->first;
-        Result += c;
+        result += ch;
     }
-    return Result;
+    return result;
 }
 
 /**********************************************************************************
@@ -376,7 +357,7 @@ struct StringInt
 {
     string       s;
     unsigned int i;
-    StringInt() { i=0; }
+    StringInt() { i = 0; }
     StringInt(const StringInt & r) : s(r.s), i(r.i) {}
     StringInt & operator = (const StringInt & r) { i = r.i; s = r.s; return *this; }
     bool operator < (const StringInt & r)  const { return s < r.s; }
@@ -396,9 +377,9 @@ typedef vector<StringInt *> StrIntPtrVect_t;
 typedef vector<StringInt> StringIntVect_t;
 
 // Variables holding 'interesting' information on the data
-unsigned int MaxLength, MinLength, NumChars, NumInWords, NumDuplicate;
+unsigned int MaxLength = 0, MinLength = 999, NumChars = 0, NumInWords = 0, NumDuplicate = 0;
 static string PassWithMaxChilds, MaxChildChars;
-static unsigned int MaxNumChilds, MaxChildsPosn;
+static unsigned int MaxNumChilds = 0, MaxChildsPosn = 0;
 
 struct FileInfo
 {
@@ -416,54 +397,54 @@ struct FileInfo
 /**********************************************************************************
  * Read the file of words and add them to the file information.
  */
-static bool ReadInputFile(const string & FileName, FileInfo &Info, int MaxRank)
+static bool ReadInputFile(const string & fileName, FileInfo &info, int maxRank)
 {
-    ifstream f(FileName.c_str());
+    ifstream f(fileName);
     if (!f.is_open())
     {
-        cerr << "Error opening " << FileName << endl;
+        cerr << "Error opening " << fileName << endl;
         return false;
     }
-    Info.Name = FileName;
+    info.Name = fileName;
 
-    // Rank is the position of the work in the dictionary file. Rank==1 is lowest for a word (and
+    // Rank is the position of the word in the dictionary file. Rank==1 is lowest for a word (and
     // indicates a very popular or bad password).
-    int Rank = 0;
-    string Line;
-    while(getline(f, Line) && (Rank < MaxRank))
+    int rank = 0;
+    string line;
+    while(getline(f, line) && (rank < maxRank))
     {
         // Truncate at first space or tab to leave just the word in case additional info on line
-        string::size_type y = Line.find_first_of("\t ");
+        auto y = line.find_first_of("\t ");
         if (y != string::npos)
-            Line.erase(y);
+            line.erase(y);
 
-        y = Line.length();
+        y = line.length();
         if (!y)
             continue;
 
-        ++Info.Words;
+        ++info.Words;
         // Only use words where all chars are ascii (no accents etc.)
-        string::size_type x;
-        double BruteForce = 1.0;
+        size_t x;
+        double bruteForce = 1.0;
         for(x = 0; x < y; ++x)
         {
-            unsigned char c = Line[x];
+            unsigned char c = line[x];
             if (c >= 128)
                 break;
             c = tolower(c);
-            Line[x] = c;
-            BruteForce *= 26.0;
+            line[x] = c;
+            bruteForce *= 26.0;
         }
         if (x < y)
         {
-            ++Info.Accented;
+            ++info.Accented;
             continue;
         }
 
         // Don't use words where the brute force strength is less than the word's rank
-        if (BruteForce < (Rank+1))
+        if (bruteForce < (rank + 1))
         {
-            ++Info.BruteIgnore;
+            ++info.BruteIgnore;
             continue;
         }
         // Remember some interesting info
@@ -473,32 +454,31 @@ static bool ReadInputFile(const string & FileName, FileInfo &Info, int MaxRank)
             MinLength = y;
         NumChars += y;
 
-        Info.Pwds.push_back(Line);
-        ++Rank;
+        info.Pwds.push_back(line);
+        ++rank;
     }
     f.close();
     return true;
 }
 
-static void CombineWordLists(EntryMap_t & Entries, FileInfo *Infos, int NumInfo)
+static void CombineWordLists(EntryMap_t & entries, FileInfo *infos, int numInfo)
 {
-    bool Done = false;
-    int Rank = 0;
-    while(!Done)
+    bool done = false;
+    int rank = 0;
+    while(!done)
     {
-        int i;
-        ++Rank;
-        Done = true;
-        for(i = 0; i < NumInfo; ++i)
+        ++rank;
+        done = true;
+        for(int i = 0; i < numInfo; ++i)
         {
-            FileInfo *p = Infos + i;
+            FileInfo *p = infos + i;
             while(!p->Pwds.empty())
             {
-                Done = false;
-                string Word = p->Pwds.front();
+                done = false;
+                string word = p->Pwds.front();
                 p->Pwds.pop_front();
-                EntryMap_t::iterator It = Entries.find(Word);
-                if (It != Entries.end())
+                auto it = entries.find(word);
+                if (it != entries.end())
                 {
                     // Word is repeat of one from another file
                     p->Dups += 1;
@@ -509,8 +489,8 @@ static void CombineWordLists(EntryMap_t & Entries, FileInfo *Infos, int NumInfo)
                     // New word, add it
                     Entry e;
                     e.mDict = i;
-                    e.mRank = Rank;
-                    Entries.insert(std::pair<std::string, Entry>(Word, e));
+                    e.mRank = rank;
+                    entries.insert({word, e});
                     p->Used += 1;
                     break;
                 }
@@ -523,45 +503,39 @@ static void CombineWordLists(EntryMap_t & Entries, FileInfo *Infos, int NumInfo)
  * Use all words previously read from file(s) and add them to a Trie, which starts
  * at Root. Also update a bool array indicating the chars used in the words.
  */
-static void ProcessEntries(NodeSPtr Root, EntryMap_t & Entries, bool *InputCharSet)
+static void ProcessEntries(NodeSPtr root, EntryMap_t & entries, bool *inputCharSet)
 {
-    EntryMap_t::iterator It;
-    std::string Text;
-    for(It = Entries.begin(); It != Entries.end(); ++It)
+    for(auto& [text, entry] : entries)
     {
-        Text = It->first;
         // Add latest word to tree
-        string::size_type x;
-        NodeSPtr pNode = Root;
-        for(x = 0; x < Text.length(); ++x)
+        NodeSPtr pNode = root;
+        for(char c : text)
         {
-            char c = Text[x];
             pNode = pNode->AddChild(c);
             // Add char to set of used character codes
-            InputCharSet[c & 0xFF] = true;
+            inputCharSet[c & 0xFF] = true;
         }
         pNode->SetEnd();
     }
 }
 
 /**********************************************************************************
- * Add the passed node to the list if it has same height  as value in Hi (= number
+ * Add the passed node to the list if it has same height as value in Hi (= number
  * of steps to get to a terminal node). If current node has height greater than Hi,
- * recursivly call with each child node as one of these may be at the required height.
+ * recursively call with each child node as one of these may be at the required height.
  */
-static void AddToListAtHeight(NodeList_t & Lst, NodeSPtr Node, int Hi)
+static void AddToListAtHeight(NodeList_t & lst, NodeSPtr node, int hi)
 {
-    if (Hi == Node->Height())
+    if (hi == node->Height())
     {
-        Lst.push_back(Node);
+        lst.push_back(node);
         return;
     }
-    if (Hi < Node->Height())
+    if (hi < node->Height())
     {
-        NodeMap_t::iterator It;
-        for(It = Node->ChildBegin(); It != Node->ChildEnd(); ++It)
+        for(auto it = node->ChildBegin(); it != node->ChildEnd(); ++it)
         {
-            AddToListAtHeight(Lst, It->second, Hi);
+            AddToListAtHeight(lst, it->second, hi);
         }
     }
 }
@@ -570,26 +544,23 @@ static void AddToListAtHeight(NodeList_t & Lst, NodeSPtr Node, int Hi)
  * Scan the trie and update the original word list with the alphabetical order
  * (or 'index location') of the words
  */
-static void ScanTrieForOrder(EntryMap_t & Entries, int & Ord, NodeSPtr Root, const string & Str)
+static void ScanTrieForOrder(EntryMap_t & entries, int & ord, NodeSPtr root, const string & str)
 {
-    if (Root->IsEnd())
+    if (root->IsEnd())
     {
         // Root is a word ending node, so store its index in the input word store
-        EntryMap_t::iterator Ite;
-        Ite = Entries.find(Str);
-        if (Ite == Entries.end())
+        auto ite = entries.find(str);
+        if (ite == entries.end())
             throw "Trie string not in entries";
 
-        Ite->second.mOrder = ++Ord;
+        ite->second.mOrder = ++ord;
     }
-    NodeMap_t::iterator It;
-    string Tmp;
     // For each child, append its character to the current word string and do a recursive
     // call to update their word indexes.
-    for(It = Root->ChildBegin(); It != Root->ChildEnd(); ++It)
+    for(auto it = root->ChildBegin(); it != root->ChildEnd(); ++it)
     {
-        Tmp = Str + It->first;
-        ScanTrieForOrder(Entries, Ord, It->second, Tmp);
+        string tmp = str + it->first;
+        ScanTrieForOrder(entries, ord, it->second, tmp);
     }
 }
 
@@ -600,47 +571,44 @@ static void ScanTrieForOrder(EntryMap_t & Entries, int & Ord, NodeSPtr Root, con
  * and delete second node and its children. Reduce height by one and repeat
  * until height is zero.
  */
-static void ReduceTrie(NodeSPtr Root)
+static void ReduceTrie(NodeSPtr root)
 {
-    int Height;
-    Root->CalcCheck();
+    root->CalcCheck();
 
-    NodeSPtr pNode = Root;
-    for(Height = Root->CalcHeight(); Height >= 0; --Height)
+    for(int height = root->CalcHeight(); height >= 0; --height)
     {
         // Get a list of all nodes at given height
-        NodeList_t Lst;
-        AddToListAtHeight(Lst, Root, Height);
+        NodeList_t lst;
+        AddToListAtHeight(lst, root, height);
 
-        NodeList_t::iterator Ita, Itb;
-        for(Ita = Lst.begin(); Ita != Lst.end(); ++Ita)
+        for(auto ita = lst.begin(); ita != lst.end(); ++ita)
         {
             // Going to use a CRC to decide if two nodes are identical
-            TrieCheck::Check_t Chka = (*Ita)->CalcCheck();
-            Itb = Ita;
-            for(++Itb; Itb != Lst.end(); )
+            TrieCheck::Check_t chka = (*ita)->CalcCheck();
+            auto itb = ita;
+            for(++itb; itb != lst.end(); )
             {
-                if (Chka == (*Itb)->CalcCheck())
+                if (chka == (*itb)->CalcCheck())
                 {
                     // Found two identical nodes (with identical children)
-                    Node * Parentb = (*Itb)->GetParent();
-                    if (Parentb)
+                    Node * parentb = (*itb)->GetParent();
+                    if (parentb)
                     {
                         // Change the 2nd parent to use the current node as child
-                        // Remove the 2nd node from the scanning list to as it will
+                        // Remove the 2nd node from the scanning list as it will
                         // get deleted by the sharing (as using std::shared_ptr)
-                        Parentb->ChangeChild(*Ita, *Itb);
-                        Itb = Lst.erase(Itb);
+                        parentb->ChangeChild(*ita, *itb);
+                        itb = lst.erase(itb);
                     }
                     else
                     {
                         cout << " orphan ";
-                        ++Itb;
+                        ++itb;
                     }
                 }
                 else
                 {
-                    ++Itb;
+                    ++itb;
                 }
             }
         }
@@ -651,29 +619,27 @@ static void ReduceTrie(NodeSPtr Root)
  * Scan the trie to match with the supplied word. Return the order of the
  * word, or -1 if it is not in the trie.
  */
-static int CheckWord(NodeSPtr Root, const string & Str)
+static int CheckWord(NodeSPtr root, const string & str)
 {
     int i = 1;
     bool e = false;
-    string::size_type x;
-    NodeSPtr p = Root;
+    NodeSPtr p = root;
 
-    for(x = 0; x < Str.length(); ++x)
+    for(size_t x = 0; x < str.length(); ++x)
     {
-        int j;
-        NodeMap_t::iterator It;
         // Scan children to find one that matches current character
-        char c = Str[x];
-        for(It = p->ChildBegin(); It != p->ChildEnd(); ++It)
+        char c = str[x];
+        auto it = p->ChildBegin();
+        for(; it != p->ChildEnd(); ++it)
         {
-            if (It->first == c)
+            if (it->first == c)
                 break;
             // Add the number of endings at or below child to track the alphabetical index
-            j = It->second->CalcEndings();
+            int j = it->second->CalcEndings();
             i += j;
         }
         // Fail if no child matches the character
-        if (It == p->ChildEnd())
+        if (it == p->ChildEnd())
             return -1;
         // Allow for this node being a word ending
         e = p->IsEnd();
@@ -682,20 +648,19 @@ static int CheckWord(NodeSPtr Root, const string & Str)
 
         if (p->GetNumChild() > MaxNumChilds)
         {
-            NodeMap_t::iterator Itc;
             MaxNumChilds = p->GetNumChild();
             MaxChildsPosn = x;
-            PassWithMaxChilds = Str;
+            PassWithMaxChilds = str;
             MaxChildChars.clear();
-            for(Itc = p->ChildBegin(); Itc != p->ChildEnd(); ++Itc)
-                MaxChildChars += Itc->first;
+            for(auto itc = p->ChildBegin(); itc != p->ChildEnd(); ++itc)
+                MaxChildChars += itc->first;
         }
-        p = It->second;
+        p = it->second;
     }
 
     if (p && p->IsEnd())
     {
-        if (x == Str.length())
+        if (str.length() == str.length())
             return i;
     }
     return -1;
@@ -705,49 +670,46 @@ static int CheckWord(NodeSPtr Root, const string & Str)
  * Try to find every input word in the reduced trie. The order should also
  * match, otherwise the reduction has corrupted the trie.
  */
-static int CheckReduction(StringIntVect_t & Ranks, NodeSPtr Root, EntryMap_t & Entries)
+static int CheckReduction(StringIntVect_t & ranks, NodeSPtr root, EntryMap_t & entries)
 {
     int i = 0;
     int n = 0;
-    EntryMap_t::iterator It;
-    std::string Text;
-    int b;
-    Ranks.resize(Entries.size()+1);
-    for(It = Entries.begin(); (It != Entries.end()) && (i <= 200000); ++It)
+    ranks.resize(entries.size() + 1);
+    
+    for(auto& [text, entry] : entries)
     {
-        Text = It->first;
-        b = CheckWord(Root, Text);
+        if (i > 200000)
+            break;
+            
+        int b = CheckWord(root, text);
         if (b < 0)
         {
             ++i;
-            cout << It->second.mOrder << ": Missing " << Text.c_str() << endl;
+            cout << entry.mOrder << ": Missing " << text << endl;
         }
-        else if (It->second.mOrder != b)
+        else if (entry.mOrder != b)
         {
             ++i;
-            cout << It->second.mOrder << ": Bad order " << b << " for  " << Text.c_str() << endl;
+            cout << entry.mOrder << ": Bad order " << b << " for  " << text << endl;
         }
         else
         {
-            //if (Text == "fred")
-            //    cout << Text.c_str() << "-> " << It->second.mOrder << ", " << It->second.mRank << endl;
             ++n;
         }
-        if (b >= int(Ranks.size()))
-            throw " Using  Ranks beyond end";
+        if (b >= static_cast<int>(ranks.size()))
+            throw " Using Ranks beyond end";
         if (b >= 0)
         {
-            char Tmp[20];
-            Ranks[b].i = It->second.mRank;
-            snprintf(Tmp, sizeof(Tmp), "%d: ", n);
-            Ranks[b].s = string(Tmp) + Text;
+            char tmp[20];
+            snprintf(tmp, sizeof(tmp), "%d: ", n);
+            ranks[b].i = entry.mRank;
+            ranks[b].s = string(tmp) + text;
         }
-        // Try to find a non-existant word
-        Text.insert(0, "a");
-        Text += '#';
-        b = CheckWord(Root, Text);
+        // Try to find a non-existent word
+        string testWord = "a" + text + '#';
+        b = CheckWord(root, testWord);
         if (b > 0)
-            throw string("Found non-existant word ") + Text;
+            throw string("Found non-existent word ") + testWord;
      }
      if (i > 0)
          throw "Missing words in reduction check = " + to_string(i);
@@ -768,39 +730,36 @@ struct ChkNum
  * Find all possible words in the trie and make sure they are input words.
  * Return number of words found. Done as a second trie check.
  */
-static ChkNum CheckEntries(NodeSPtr Root, string Str, const EntryMap_t & Entries)
+static ChkNum CheckEntries(NodeSPtr root, string str, const EntryMap_t & entries)
 {
-    ChkNum Ret;
-    if (Root->IsEnd())
+    ChkNum ret;
+    if (root->IsEnd())
     {
         // This is an end node, find the word in the input words
-        EntryMap_t::const_iterator It = Entries.find(Str);
-        if (It != Entries.end())
-            ++Ret.Match;
+        auto it = entries.find(str);
+        if (it != entries.end())
+            ++ret.Match;
         else
-            ++Ret.Err;
+            ++ret.Err;
     }
     // Add each child character to the passed string and recursively check
-    NodeMap_t::iterator It;
-    for(It = Root->ChildBegin(); It != Root->ChildEnd(); ++It)
+    for(auto it = root->ChildBegin(); it != root->ChildEnd(); ++it)
     {
-        string Tmp = Str;
-        Tmp += It->first;
-        Ret += CheckEntries(It->second, Tmp, Entries);
+        string tmp = str + it->first;
+        ret += CheckEntries(it->second, tmp, entries);
     }
-    return Ret;
+    return ret;
 }
 
 /**********************************************************************************
  * Convert the passed bool array of used chars into a character string
  */
-string MakeCharSet(bool *InputCharSet)
+string MakeCharSet(bool *inputCharSet)
 {
-    int i;
     string s;
-    for(i = 1; i < 256; ++i)
+    for(int i = 1; i < 256; ++i)
     {
-        if (InputCharSet[i])
+        if (inputCharSet[i])
             s += char(i);
     }
     return s;
@@ -810,35 +769,33 @@ string MakeCharSet(bool *InputCharSet)
  * Create a set of strings which contain the possible characters matched at
  * a node when checking a word.
  */
-void MakeChildBitMap(StringIntSet_t & StrSet, NodeSPtr Root, int & Loc)
+void MakeChildBitMap(StringIntSet_t & strSet, NodeSPtr root, int & loc)
 {
     // Skip if already done
-    if (Root->IsCounted())
+    if (root->IsCounted())
         return;
 
-    string::size_type x;
-    StringInt In;
-    NodeSPtr p = Root;
-    In.s = Root->GetChildChars();
-    if (StrSet.find(In) == StrSet.end())
+    StringInt in;
+    NodeSPtr p = root;
+    in.s = root->GetChildChars();
+    if (strSet.find(in) == strSet.end())
     {
         // Not already in set of possible child chars for a node, so add it
-        In.i = Loc++; // Address in the final output array
-        StrSet.insert(In);
+        in.i = loc++; // Address in the final output array
+        strSet.insert(in);
     }
     // Recursively do the child nodes
-    for(x = 0; x < In.s.length(); ++x)
+    for(char c : in.s)
     {
-        char c = In.s[x];
         NodeSPtr q = p->FindChild(c);
         if (q)
-            MakeChildBitMap(StrSet, q, Loc);
+            MakeChildBitMap(strSet, q, loc);
     }
-    Root->SetCounted();
+    root->SetCounted();
 }
 
 // Constants defining bit positions of node data
-// Number of bits to represent the index of the child char pattern in the final child bitmap array,
+// Number of bits to represent the index of the child char pattern in the final child bitmap array
 const int BITS_CHILD_PATT_INDEX = 14;
 
 // Number of bits to represent index of where the child pointers start for this node in
@@ -849,186 +806,186 @@ const int SHIFT_CHILD_MAP_INDEX = BITS_CHILD_PATT_INDEX;
 // Bit positions of word ending indicator and indicator for number of word endings for this + child nodes is >= 256
 const int SHIFT_WORD_ENDING_BIT = SHIFT_CHILD_MAP_INDEX + BITS_CHILD_MAP_INDEX;
 const int SHIFT_LARGE_ENDING_BIT = SHIFT_WORD_ENDING_BIT + 1;
+
 /**********************************************************************************
  * Create the arrays of data that will be output
  */
-void CreateArrays(NodeSPtr Root, StringIntSet_t & StrSet, StringOfInts & ChildAddrs, Uint64Vect & NodeData, UintVect & NodeEnds)
+void CreateArrays(NodeSPtr root, StringIntSet_t & strSet, StringOfInts & childAddrs, Uint64Vect & nodeData, UintVect & nodeEnds)
 {
-    NodeMap_t::iterator Itc;
-    StringInt Tmp;
-    StringOfInts Chld;
+    StringInt tmp;
+    StringOfInts chld;
 
     // Find children in the child pattern array
-    Tmp.s= Root->GetChildChars();
-    StringIntSet_t::iterator Its = StrSet.find(Tmp);
+    tmp.s = root->GetChildChars();
+    auto its = strSet.find(tmp);
 
     // Make a 'string' of pointers to the children
-    for(Itc = Root->ChildBegin(); Itc != Root->ChildEnd(); ++Itc)
+    for(auto itc = root->ChildBegin(); itc != root->ChildEnd(); ++itc)
     {
-        int i = Itc->second->GetAddr();
-        Chld.push_back(i);
+        int i = itc->second->GetAddr();
+        chld.push_back(i);
     }
     // Find where in pointer array the child pointer string is
-    StringOfInts::size_type x = search(ChildAddrs.begin(), ChildAddrs.end(), Chld.begin(), Chld.end()) - ChildAddrs.begin();
-    if (x == ChildAddrs.size())
+    auto x = search(childAddrs.begin(), childAddrs.end(), chld.begin(), chld.end()) - childAddrs.begin();
+    if (x == static_cast<decltype(x)>(childAddrs.size()))
     {
         // Not found, add it
-        ChildAddrs.insert(ChildAddrs.end(), Chld.begin(), Chld.end());
+        childAddrs.insert(childAddrs.end(), chld.begin(), chld.end());
     }
     // Val will contain the final node data
-    uint64_t Val = Its->i;
-    if (Val >= (1 << BITS_CHILD_PATT_INDEX))
+    uint64_t val = its->i;
+    if (val >= (1u << BITS_CHILD_PATT_INDEX))
     {
-        char Tmp[20];
-        snprintf(Tmp, sizeof Tmp, "%u", Its->i);
-        throw string("Not enough bits for child pattern index value of ") + Tmp + " for " +
-                Its->s + " (BITS_CHILD_PATT_INDEX too small)";
+        char tmpStr[20];
+        snprintf(tmpStr, sizeof tmpStr, "%u", its->i);
+        throw string("Not enough bits for child pattern index value of ") + tmpStr + " for " +
+                its->s + " (BITS_CHILD_PATT_INDEX too small)";
     }
-    if (x >= (1 << BITS_CHILD_MAP_INDEX))
+    if (x >= (1u << BITS_CHILD_MAP_INDEX))
     {
-        char Tmp[24];
-        snprintf(Tmp, sizeof Tmp, "%lu", x);
-        throw string("Not enough bits for child map index value of ") + Tmp + " for " +
-                Its->s + " (BITS_CHILD_MAP_INDEX too small)";
+        char tmpStr[24];
+        snprintf(tmpStr, sizeof tmpStr, "%zu", x);
+        throw string("Not enough bits for child map index value of ") + tmpStr + " for " +
+                its->s + " (BITS_CHILD_MAP_INDEX too small)";
     }
-    Val |= x << SHIFT_CHILD_MAP_INDEX;
-    if (Root->IsEnd())
-        Val |= uint64_t(1) << SHIFT_WORD_ENDING_BIT;
-    if (Root->GetNumEnds() >= 256)
-        Val |= uint64_t(1) << SHIFT_LARGE_ENDING_BIT;
+    val |= x << SHIFT_CHILD_MAP_INDEX;
+    if (root->IsEnd())
+        val |= uint64_t(1) << SHIFT_WORD_ENDING_BIT;
+    if (root->GetNumEnds() >= 256)
+        val |= uint64_t(1) << SHIFT_LARGE_ENDING_BIT;
 
     // Make sure output arrays are big enough
-    if (Root->GetAddr() > NodeData.size())
+    if (root->GetAddr() >= nodeData.size())
     {
-        NodeData.resize(Root->GetAddr()+1, 4000000000);
-        NodeEnds.resize(Root->GetAddr()+1, 4000000000);
+        nodeData.resize(root->GetAddr() + 1, 4000000000);
+        nodeEnds.resize(root->GetAddr() + 1, 4000000000);
     }
     // Save the node data and number of word endings for the node
-    NodeData[Root->GetAddr()] = Val;
-    NodeEnds[Root->GetAddr()] = Root->GetNumEnds();
+    nodeData[root->GetAddr()] = val;
+    nodeEnds[root->GetAddr()] = root->GetNumEnds();
 
     // Now do the children
-    for(Itc = Root->ChildBegin(); Itc != Root->ChildEnd(); ++Itc)
+    for(auto itc = root->ChildBegin(); itc != root->ChildEnd(); ++itc)
     {
-        CreateArrays(Itc->second, StrSet, ChildAddrs, NodeData, NodeEnds);
+        CreateArrays(itc->second, strSet, childAddrs, nodeData, nodeEnds);
     }
 }
 
 /**********************************************************************************
  * Output the data as a binary file.
  */
-static int OutputBinary(ostream *Out, const string & ChkFile, const string & CharSet, StringIntSet_t & StrSet, //NodeSPtr & Root,
-                        StringOfInts & ChildAddrs, Uint64Vect & NodeData, UintVect & NodeEnds, StringIntVect_t & Ranks)
+static int OutputBinary(ostream *out, const string & chkFile, const string & charSet, StringIntSet_t & strSet,
+                        StringOfInts & childAddrs, Uint64Vect & nodeData, UintVect & nodeEnds, StringIntVect_t & ranks)
 {
-    int OutputSize;
-    unsigned int FewEndStart = 2000000000;
+    int outputSize;
+    unsigned int fewEndStart = 2000000000;
     unsigned int i;
-    unsigned int Index;
+    unsigned int index;
     unsigned short u;
     TrieCheck h;
 
-    for(Index = 0; Index < NodeData.size(); ++Index)
+    for(index = 0; index < nodeData.size(); ++index)
     {
-        uint64_t v = NodeData[Index];
-        if ((FewEndStart >= 2000000000) && !(v & (uint64_t(1) << SHIFT_LARGE_ENDING_BIT)))
+        uint64_t v = nodeData[index];
+        if ((fewEndStart >= 2000000000) && !(v & (uint64_t(1) << SHIFT_LARGE_ENDING_BIT)))
         {
-            FewEndStart = Index;
+            fewEndStart = index;
             break;
         }
     }
     // Header words
-    unsigned int NumWordEnd;
-    const unsigned int MAGIC = 'z' + ('x'<< 8) + ('c' << 16) + ('v' << 24);
-    Out->write((char *)&MAGIC, sizeof MAGIC);   // Write magic
+    unsigned int numWordEnd;
+    const unsigned int MAGIC = 'z' + ('x' << 8) + ('c' << 16) + ('v' << 24);
+    out->write(reinterpret_cast<const char *>(&MAGIC), sizeof MAGIC);
     h(&MAGIC, sizeof MAGIC);
-    OutputSize = sizeof MAGIC;
+    outputSize = sizeof MAGIC;
 
-    i = NodeData.size();
-    Out->write((char *)&i, sizeof i);   // Write number of nodes
+    i = nodeData.size();
+    out->write(reinterpret_cast<const char *>(&i), sizeof i);
     h(&i, sizeof i);
-    OutputSize += sizeof i;
+    outputSize += sizeof i;
 
-    i = ChildAddrs.size();
-    if (NodeData.size() > numeric_limits<unsigned int>::max())
-        i |= 1<<31;
-    Out->write((char *)&i, sizeof i);   // Write number of child location entries & size of each entry
+    i = childAddrs.size();
+    if (nodeData.size() > numeric_limits<unsigned int>::max())
+        i |= 1 << 31;
+    out->write(reinterpret_cast<const char *>(&i), sizeof i);
     h(&i, sizeof i);
-    OutputSize += sizeof i;
+    outputSize += sizeof i;
 
-    i = Ranks.size();
-    Out->write((char *)&i, sizeof i);   // Write number of ranks
+    i = ranks.size();
+    out->write(reinterpret_cast<const char *>(&i), sizeof i);
     h(&i, sizeof i);
-    OutputSize += sizeof i;
+    outputSize += sizeof i;
 
-    NumWordEnd = (NodeData.size() + 7) / 8;
-    Out->write((char *)&NumWordEnd, sizeof NumWordEnd);   // Write number of word endings
-    h(&NumWordEnd, sizeof NumWordEnd);
-    OutputSize += sizeof NumWordEnd;
+    numWordEnd = (nodeData.size() + 7) / 8;
+    out->write(reinterpret_cast<const char *>(&numWordEnd), sizeof numWordEnd);
+    h(&numWordEnd, sizeof numWordEnd);
+    outputSize += sizeof numWordEnd;
 
-    i = StrSet.size();
-    Out->write((char *)&i, sizeof i);   // Write size of of child bitmap data
+    i = strSet.size();
+    out->write(reinterpret_cast<const char *>(&i), sizeof i);
     h(&i, sizeof i);
-    OutputSize += sizeof i;
+    outputSize += sizeof i;
 
-    unsigned int BytePerEntry = (CharSet.length() + 7) / 8;
-    Out->write((char *)&BytePerEntry, sizeof BytePerEntry);   // Write size of each child bitmap
-    h(&BytePerEntry, sizeof BytePerEntry);
-    OutputSize += sizeof BytePerEntry;
+    unsigned int bytePerEntry = (charSet.length() + 7) / 8;
+    out->write(reinterpret_cast<const char *>(&bytePerEntry), sizeof bytePerEntry);
+    h(&bytePerEntry, sizeof bytePerEntry);
+    outputSize += sizeof bytePerEntry;
 
-    Out->write((char *)&FewEndStart, sizeof FewEndStart);   // Write number of large end counts
-    h(&FewEndStart, sizeof FewEndStart);
-    OutputSize += sizeof FewEndStart;
+    out->write(reinterpret_cast<const char *>(&fewEndStart), sizeof fewEndStart);
+    h(&fewEndStart, sizeof fewEndStart);
+    outputSize += sizeof fewEndStart;
 
-    i = NodeData.size();
-    Out->write((char *)&i, sizeof i);   // Write number of end counts
+    i = nodeData.size();
+    out->write(reinterpret_cast<const char *>(&i), sizeof i);
     h(&i, sizeof i);
-    OutputSize += sizeof i;
+    outputSize += sizeof i;
 
-    i = CharSet.length();
-    Out->write((char *)&i, sizeof i);   // Write size of character set
+    i = charSet.length();
+    out->write(reinterpret_cast<const char *>(&i), sizeof i);
     h(&i, sizeof i);
-    OutputSize += sizeof i;
+    outputSize += sizeof i;
 
     // Output array of node data
-    unsigned char *WordEnds = new unsigned char[NumWordEnd];
+    vector<unsigned char> wordEnds(numWordEnd, 0);
     unsigned char v = 0;
     unsigned int z = 0;
     int y = 0;
-    for(Index = 0; Index < NodeData.size(); ++Index)
+    for(index = 0; index < nodeData.size(); ++index)
     {
-        i = NodeData[Index];
-        Out->write((char *)&i, sizeof i);
+        i = nodeData[index];
+        out->write(reinterpret_cast<const char *>(&i), sizeof i);
         h(&i, sizeof i);
 
-        if (NodeData[Index] & (uint64_t(1) << SHIFT_WORD_ENDING_BIT))
+        if (nodeData[index] & (uint64_t(1) << SHIFT_WORD_ENDING_BIT))
             v |= 1 << y;
         if (++y >= 8)
         {
-            WordEnds[z++] = v;
+            wordEnds[z++] = v;
             y = 0;
             v = 0;
         }
     }
-    while(z < NumWordEnd)
+    while(z < numWordEnd)
     {
-         WordEnds[z++] = v;
+         wordEnds[z++] = v;
          v = 0;
     }
-    OutputSize += Index * sizeof i;
+    outputSize += index * sizeof i;
 
     // Output array of node pointers
-    for(Index = 0; Index < ChildAddrs.size(); ++Index)
+    for(index = 0; index < childAddrs.size(); ++index)
     {
-        i = ChildAddrs[Index];
-        Out->write((char *)&i, sizeof i);
+        i = childAddrs[index];
+        out->write(reinterpret_cast<const char *>(&i), sizeof i);
         h(&i, sizeof i);
     }
-    OutputSize += Index * sizeof i;
+    outputSize += index * sizeof i;
 
     // Output ranks
-    for(Index = 0; Index < Ranks.size(); ++Index)
+    for(index = 0; index < ranks.size(); ++index)
     {
-        i = Ranks[Index].i;
+        i = ranks[index].i;
         if (i >= (1 << 15))
         {
             i -= 1 << 15;
@@ -1040,223 +997,216 @@ static int OutputBinary(ostream *Out, const string & ChkFile, const string & Cha
         if (i > numeric_limits<unsigned short>::max())
             i = numeric_limits<unsigned short>::max();
         u = i;
-        Out->write((char *)&u, sizeof u);
+        out->write(reinterpret_cast<const char *>(&u), sizeof u);
         h(&u, sizeof u);
     }
-    OutputSize += Index * sizeof u;
+    outputSize += index * sizeof u;
 
     // Output word end bit markers
-    Out->write((char *)WordEnds, NumWordEnd);
-    h(WordEnds, NumWordEnd);
-    OutputSize += NumWordEnd;
-    delete [] WordEnds;
+    out->write(reinterpret_cast<const char *>(wordEnds.data()), numWordEnd);
+    h(wordEnds.data(), numWordEnd);
+    outputSize += numWordEnd;
 
-    StringIntSet_t::iterator Its;
-    string Str;
-    unsigned char Buf[8];
+    string str;
+    unsigned char buf[8];
 
-    // Get the items from StrSet ordered by the index
-    StrIntPtrVect_t SetPtrs;
-    SetPtrs.resize(StrSet.size());
-    for(Its = StrSet.begin(); Its != StrSet.end(); ++Its)
+    // Get the items from strSet ordered by the index
+    StrIntPtrVect_t setPtrs(strSet.size());
+    for(auto& item : strSet)
     {
-        StringInt *p = Its->Self();
-        if (p->i >= StrSet.size())
+        StringInt *p = item.Self();
+        if (p->i >= strSet.size())
             throw "Bad index";
-        SetPtrs[p->i] = p;
+        setPtrs[p->i] = p;
     }
     // Output child bitmap
-    unsigned int CharSetLen = 0;
-    for(Index = 0; Index < SetPtrs.size(); ++Index)
+    unsigned int charSetLen = 0;
+    for(index = 0; index < setPtrs.size(); ++index)
     {
         unsigned int j;
-        string::size_type z1, y1;
-        StringInt *p;
-        memset(Buf, 0, sizeof Buf);
-        p = SetPtrs[Index];
-        Str = p->s;
-        for(z1 = 0; z1 < Str.length(); ++z1)
+        memset(buf, 0, sizeof buf);
+        StringInt *p = setPtrs[index];
+        str = p->s;
+        for(char ch : str)
         {
-            y1 = CharSet.find(Str[z1]);
-            if (y1 != string::npos)
+            auto pos = charSet.find(ch);
+            if (pos != string::npos)
             {
-                Buf[y1 / 8] |= 1 << (y1 & 7);
+                buf[pos / 8] |= 1 << (pos & 7);
             }
         }
-        // Find max bits set which indicates max number chars ued at a node
-        for(i = j = 0; i < 8 * sizeof Buf; ++i)
+        // Find max bits set which indicates max number chars used at a node
+        for(i = j = 0; i < 8 * sizeof buf; ++i)
         {
-            if (Buf[i/8] & (1 << (i & 7)))
+            if (buf[i / 8] & (1 << (i & 7)))
                 ++j;
         }
-        if (j > CharSetLen)
-            CharSetLen = j;
+        if (j > charSetLen)
+            charSetLen = j;
 
-        Out->write((char *)Buf, BytePerEntry);
-        h(Buf, BytePerEntry);
+        out->write(reinterpret_cast<const char *>(buf), bytePerEntry);
+        h(buf, bytePerEntry);
      }
-    OutputSize += Index * BytePerEntry;
+    outputSize += index * bytePerEntry;
 
     unsigned char c;
-    for(Index = 0; Index < FewEndStart; ++Index)
+    for(index = 0; index < fewEndStart; ++index)
     {
-        i = NodeEnds[Index] >> 8;
-        if (i >= 256)
-            c = 0;
-        else
-            c = i;
-        Out->write((char *)&c, 1);
+        i = nodeEnds[index] >> 8;
+        c = (i >= 256) ? 0 : i;
+        out->write(reinterpret_cast<const char *>(&c), 1);
         h(&c, 1);
     }
-    OutputSize += Index * sizeof c;
+    outputSize += index * sizeof c;
 
-    for(Index = 0; Index < NodeEnds.size(); ++Index)
+    for(index = 0; index < nodeEnds.size(); ++index)
     {
-        c = NodeEnds[Index];
-        Out->write((char *)&c, 1);
+        c = nodeEnds[index];
+        out->write(reinterpret_cast<const char *>(&c), 1);
         h(&c, 1);
     }
-    OutputSize += Index * sizeof c;
+    outputSize += index * sizeof c;
 
-    Out->write(CharSet.c_str(), CharSet.length());
-    h(CharSet.c_str(), CharSet.length());
-    OutputSize += CharSet.length();
+    out->write(charSet.c_str(), charSet.length());
+    h(charSet.c_str(), charSet.length());
+    outputSize += charSet.length();
 
-    if (!ChkFile.empty())
+    if (!chkFile.empty())
     {
         // Write the checksum file
         TrieCheck::Check_t x = h.Result();
-        ofstream f(ChkFile);
+        ofstream f(chkFile);
         f << "static const unsigned char WordCheck[" << sizeof x << "] =\n{\n    ";
-        unsigned char *c = reinterpret_cast<unsigned char *>(&x);
-        for(Index = 0; Index < sizeof x; ++Index, ++c)
+        unsigned char *cp = reinterpret_cast<unsigned char *>(&x);
+        for(index = 0; index < sizeof x; ++index, ++cp)
         {
-            if (Index)
+            if (index)
                 f << ',';
-            f << int(*c);
+            f << int(*cp);
         }
         f << "\n};\n";
-        f << "#define WORD_FILE_SIZE " << OutputSize << endl;
+        f << "#define WORD_FILE_SIZE " << outputSize << endl;
         f << "#define ROOT_NODE_LOC 0\n"
              "#define BITS_CHILD_PATT_INDEX " << BITS_CHILD_PATT_INDEX << "\n"
              "#define BITS_CHILD_MAP_INDEX  " << BITS_CHILD_MAP_INDEX << "\n"
              "#define SHIFT_CHILD_MAP_INDEX BITS_CHILD_PATT_INDEX\n"
              "#define SHIFT_WORD_ENDING_BIT (SHIFT_CHILD_MAP_INDEX + BITS_CHILD_MAP_INDEX)\n"
-             "#define CHARSET_SIZE " << (CharSetLen + 1) << endl;
+             "#define CHARSET_SIZE " << (charSetLen + 1) << endl;
         f.close();
     }
-    return OutputSize;
+    return outputSize;
 }
 
-int OutputTester(ostream *Out, bool /*Cmnts*/, StringIntVect_t & Ranks)
+int OutputTester(ostream *out, bool /*cmnts*/, StringIntVect_t & ranks)
 {
-    unsigned int Index;
-    string Pwd;
-    for(Index = 01; Index < Ranks.size(); ++Index)
+    unsigned int index;
+    string pwd;
+    for(index = 1; index < ranks.size(); ++index)
     {
-        unsigned int v = Ranks[Index].i;
-        Pwd = Ranks[Index].s;
-        string::size_type x = Pwd.find(':');
+        unsigned int v = ranks[index].i;
+        pwd = ranks[index].s;
+        auto x = pwd.find(':');
         if (x != string::npos)
-            Pwd.erase(0, x+1);
+            pwd.erase(0, x + 1);
 
-        *Out << Pwd.c_str() << "  ";
-        for(x = Pwd.length(); x < 16; ++x)
-            *Out << ' ';
-        *Out << log(v*1.0) / log(2.0) << "  " << v << '\n';
+        *out << pwd << "  ";
+        for(x = pwd.length(); x < 16; ++x)
+            *out << ' ';
+        *out << log(v * 1.0) / log(2.0) << "  " << v << '\n';
     }
-    return Index;
+    return index;
 }
+
 const int LINE_OUT_LEN = 160;
+
 /**********************************************************************************
  * Output the data as C source.
  */
-int OutputCode(ostream *Out, bool Cmnts, const string & CharSet, StringIntSet_t & StrSet, NodeSPtr & Root,
-               StringOfInts & ChildAddrs, Uint64Vect & NodeData, UintVect & NodeEnds, StringIntVect_t & Ranks)
+int OutputCode(ostream *out, bool cmnts, const string & charSet, StringIntSet_t & strSet, NodeSPtr & root,
+               StringOfInts & childAddrs, Uint64Vect & nodeData, UintVect & nodeEnds, StringIntVect_t & ranks)
 {
-    unsigned int Index;
-    int OutputSize;
+    unsigned int index;
+    int outputSize;
 
-    if (Cmnts)
-        *Out << "#define ND(e,c,b) (c<<" << SHIFT_CHILD_MAP_INDEX << ")|b\n";
+    if (cmnts)
+        *out << "#define ND(e,c,b) (c<<" << SHIFT_CHILD_MAP_INDEX << ")|b\n";
 
     // Output array of node data
-    *Out << "#define ROOT_NODE_LOC 0\n"
+    *out << "#define ROOT_NODE_LOC 0\n"
             "#define BITS_CHILD_PATT_INDEX " << BITS_CHILD_PATT_INDEX << "\n"
             "#define BITS_CHILD_MAP_INDEX  " << BITS_CHILD_MAP_INDEX << "\n"
             "#define SHIFT_CHILD_MAP_INDEX BITS_CHILD_PATT_INDEX\n"
             "#define SHIFT_WORD_ENDING_BIT (SHIFT_CHILD_MAP_INDEX + BITS_CHILD_MAP_INDEX)\n"
-            "static const unsigned int DictNodes[" << NodeData.size() << "] =\n{";
-    OutputSize = NodeData.size() * sizeof(unsigned int);
+            "static const unsigned int DictNodes[" << nodeData.size() << "] =\n{";
+    outputSize = nodeData.size() * sizeof(unsigned int);
     int x = 999;
-    unsigned int FewEndStart = 2000000000;
-    for(Index = 0; Index < NodeData.size(); ++Index)
+    unsigned int fewEndStart = 2000000000;
+    for(index = 0; index < nodeData.size(); ++index)
     {
         uint64_t v;
         x += 11;
         if (x > LINE_OUT_LEN)
         {
-            *Out << "\n    ";
-            x=0;
+            *out << "\n    ";
+            x = 0;
         }
-        v = NodeData[Index];
+        v = nodeData[index];
         v &= (uint64_t(1) << SHIFT_WORD_ENDING_BIT) - 1;
-        if (Cmnts)
+        if (cmnts)
         {
-            uint64_t i;
-            i = (v >> SHIFT_WORD_ENDING_BIT) & 3;
-            *Out << "ND(" << i << ',';
-            i= (v >> SHIFT_CHILD_MAP_INDEX) & ((1<<BITS_CHILD_MAP_INDEX)-1);
-            *Out << i << ',';
-            if (i < 10000) *Out << ' ';
-            if (i < 1000)  *Out << ' ';
-            if (i < 100)   *Out << ' ';
-            if (i < 10)    *Out << ' ';
-            i = v & ((1<<BITS_CHILD_PATT_INDEX)-1);
-            *Out << i << ")";
-            if (Index < (NodeData.size()-1))
+            uint64_t i = (v >> SHIFT_WORD_ENDING_BIT) & 3;
+            *out << "ND(" << i << ',';
+            i = (v >> SHIFT_CHILD_MAP_INDEX) & ((1 << BITS_CHILD_MAP_INDEX) - 1);
+            *out << i << ',';
+            if (i < 10000) *out << ' ';
+            if (i < 1000)  *out << ' ';
+            if (i < 100)   *out << ' ';
+            if (i < 10)    *out << ' ';
+            i = v & ((1 << BITS_CHILD_PATT_INDEX) - 1);
+            *out << i << ")";
+            if (index < (nodeData.size() - 1))
             {
-                *Out << ',';
-                if (i < 1000)  *Out << ' ';
-                if (i < 100)   *Out << ' ';
-                if (i < 10)    *Out << ' ';
+                *out << ',';
+                if (i < 1000)  *out << ' ';
+                if (i < 100)   *out << ' ';
+                if (i < 10)    *out << ' ';
             }
         }
         else
         {
-            *Out << v;
-            if (Index < (NodeData.size()-1))
+            *out << v;
+            if (index < (nodeData.size() - 1))
             {
-                *Out << ',';
-                if (v < 1000000000) *Out << ' ';
-                if (v < 100000000) *Out << ' ';
-                if (v < 10000000) *Out << ' ';
-                if (v < 1000000) *Out << ' ';
-                if (v < 100000) *Out << ' ';
-                if (v < 10000) *Out << ' ';
-                if (v < 1000)  *Out << ' ';
-                if (v < 100)   *Out << ' ';
-                if (v < 10)    *Out << ' ';
+                *out << ',';
+                if (v < 1000000000) *out << ' ';
+                if (v < 100000000) *out << ' ';
+                if (v < 10000000) *out << ' ';
+                if (v < 1000000) *out << ' ';
+                if (v < 100000) *out << ' ';
+                if (v < 10000) *out << ' ';
+                if (v < 1000)  *out << ' ';
+                if (v < 100)   *out << ' ';
+                if (v < 10)    *out << ' ';
             }
         }
-        if ((FewEndStart >= 2000000000) && !(NodeData[Index] & (uint64_t(1) << SHIFT_LARGE_ENDING_BIT)))
-            FewEndStart = Index;
+        if ((fewEndStart >= 2000000000) && !(nodeData[index] & (uint64_t(1) << SHIFT_LARGE_ENDING_BIT)))
+            fewEndStart = index;
     }
-    *Out << "\n};\n";
-    unsigned int Len = ((NodeData.size() + 7) / 8);
-    OutputSize += Len;
+    *out << "\n};\n";
+    unsigned int len = ((nodeData.size() + 7) / 8);
+    outputSize += len;
     x = 999;
-    *Out << "static const unsigned char WordEndBits[" << Len << "] =\n{";
-    Index = 0;
+    *out << "static const unsigned char WordEndBits[" << len << "] =\n{";
+    index = 0;
     {
         unsigned int v = 0;
         unsigned int y = 0;
         unsigned int z = 0;
-        while(z < Len)
+        while(z < len)
         {
-            if (Index < NodeData.size())
+            if (index < nodeData.size())
             {
-                if (NodeData[Index] & (uint64_t(1) << SHIFT_WORD_ENDING_BIT))
+                if (nodeData[index] & (uint64_t(1) << SHIFT_WORD_ENDING_BIT))
                     v |= 1 << y;
             }
             if (++y >= 8)
@@ -1264,360 +1214,350 @@ int OutputCode(ostream *Out, bool Cmnts, const string & CharSet, StringIntSet_t 
                 x += 4;
                 if (x > LINE_OUT_LEN)
                 {
-                    *Out << "\n    ";
+                    *out << "\n    ";
                     x = 0;
                 }
-                *Out << v;
-                if (++z < Len)
+                *out << v;
+                if (++z < len)
                 {
-                    *Out << ',';
-                    if (v < 100) *Out << ' ';
-                    if (v < 10) *Out << ' ';
+                    *out << ',';
+                    if (v < 100) *out << ' ';
+                    if (v < 10) *out << ' ';
                 }
                 y = 0;
                 v = 0;
             }
-            ++Index;
+            ++index;
         }
     }
-    *Out << "\n};\n";
+    *out << "\n};\n";
     // Output array of node pointers
-    *Out << "static const unsigned ";
-    if (NodeData.size() > numeric_limits<unsigned short>::max())
+    *out << "static const unsigned ";
+    if (nodeData.size() > numeric_limits<unsigned short>::max())
     {
-        *Out << "int";
+        *out << "int";
         x = sizeof(unsigned int);
     }
     else
     {
-        *Out << "short";
+        *out << "short";
         x = sizeof(unsigned short);
     }
-    *Out << " ChildLocs[" << ChildAddrs.size() << "] =\n{";
-    OutputSize += x * ChildAddrs.size();
+    *out << " ChildLocs[" << childAddrs.size() << "] =\n{";
+    outputSize += x * childAddrs.size();
     x = 999;
-    for(Index = 0; Index < ChildAddrs.size(); ++Index)
+    for(index = 0; index < childAddrs.size(); ++index)
     {
         int v;
         x += 6;
         if (x > LINE_OUT_LEN)
         {
-            *Out << "\n    ";
-            x=0;
+            *out << "\n    ";
+            x = 0;
         }
-        v = ChildAddrs[Index];
-        *Out << v;
-        if (Index < (ChildAddrs.size()-1))
+        v = childAddrs[index];
+        *out << v;
+        if (index < (childAddrs.size() - 1))
         {
-            *Out << ',';
-            if (v < 10000) *Out << ' ';
-            if (v < 1000)  *Out << ' ';
-            if (v < 100)   *Out << ' ';
-            if (v < 10)    *Out << ' ';
+            *out << ',';
+            if (v < 10000) *out << ' ';
+            if (v < 1000)  *out << ' ';
+            if (v < 100)   *out << ' ';
+            if (v < 10)    *out << ' ';
         }
     }
-    *Out << "\n};\n";
+    *out << "\n};\n";
 
     // Output the rank of the words
-    *Out << "static const unsigned short Ranks[" << Ranks.size() << "] =\n{";
-    OutputSize += Ranks.size() * sizeof(unsigned short);
+    *out << "static const unsigned short Ranks[" << ranks.size() << "] =\n{";
+    outputSize += ranks.size() * sizeof(unsigned short);
     x = 999;
-    bool TooBig = false;
-    if (Cmnts)
+    bool tooBig = false;
+    if (cmnts)
     {
-        *Out << "\n";
-        for(Index = 0; Index < Ranks.size(); ++Index)
+        *out << "\n";
+        for(index = 0; index < ranks.size(); ++index)
         {
-            unsigned int v;
-            *Out << "    ";
-            v = Ranks[Index].i;
+            unsigned int v = ranks[index].i;
+            *out << "    ";
             if (v >= (1 << 15))
             {
                 v -= 1 << 15;
                 v /= 4;
                 if (v >= (1 << 15))
                 {
-                    TooBig = true;
+                    tooBig = true;
                     v = (1 << 15) - 1;
                 }
                 v |= 1 << 15;
             }
             if (v > numeric_limits<unsigned short>::max())
                 v = numeric_limits<unsigned short>::max();
-            *Out << v;
-            if (Index < (Ranks.size()-1))
+            *out << v;
+            if (index < (ranks.size() - 1))
             {
-                *Out << ',';
-                if (v < 10000) *Out << ' ';
-                if (v < 1000)  *Out << ' ';
-                if (v < 100)   *Out << ' ';
-                if (v < 10)    *Out << ' ';
+                *out << ',';
+                if (v < 10000) *out << ' ';
+                if (v < 1000)  *out << ' ';
+                if (v < 100)   *out << ' ';
+                if (v < 10)    *out << ' ';
             }
-            *Out << " // " << Ranks[Index].s.c_str() << '\n';
+            *out << " // " << ranks[index].s << '\n';
         }
     }
     else
     {
-        for(Index = 0; Index < Ranks.size(); ++Index)
+        for(index = 0; index < ranks.size(); ++index)
         {
-            unsigned int v;
+            unsigned int v = ranks[index].i;
             x += 6;
             if (x > LINE_OUT_LEN)
             {
-                *Out << "\n    ";
-                x=0;
+                *out << "\n    ";
+                x = 0;
             }
-            v = Ranks[Index].i;
             if (v >= (1 << 15))
             {
                 v -= 1 << 15;
                 v /= 4;
-                if (v >= (1<<15))
+                if (v >= (1 << 15))
                 {
-                    TooBig = true;
+                    tooBig = true;
                     v = (1 << 15) - 1;
                 }
                 v |= 1 << 15;
             }
             if (v > numeric_limits<unsigned short>::max())
                 v = numeric_limits<unsigned short>::max();
-            *Out << v;
-            if (Index < (Ranks.size()-1))
+            *out << v;
+            if (index < (ranks.size() - 1))
             {
-                *Out << ',';
-                if (v < 10000) *Out << ' ';
-                if (v < 1000)  *Out << ' ';
-                if (v < 100)   *Out << ' ';
-                if (v < 10)    *Out << ' ';
+                *out << ',';
+                if (v < 10000) *out << ' ';
+                if (v < 1000)  *out << ' ';
+                if (v < 100)   *out << ' ';
+                if (v < 10)    *out << ' ';
             }
         }
     }
-    *Out << "\n};\n";
-    if (TooBig)
+    *out << "\n};\n";
+    if (tooBig)
     {
-        unsigned int v  = ((1<<15) - 1) * 4 + (1<<15);
+        unsigned int v  = ((1 << 15) - 1) * 4 + (1 << 15);
         cout << "// Word ranks too large, value restricted to " << v << endl;
     }
-    unsigned int BytePerEntry = (CharSet.length() + 7) / 8;
-    *Out << "#define SizeChildMapEntry " << BytePerEntry << '\n';
-    *Out << "static const unsigned char ChildMap[" << StrSet.size() << '*' << BytePerEntry << "] =\n{";
-    OutputSize += StrSet.size() * BytePerEntry * sizeof(unsigned char);
+    unsigned int bytePerEntry = (charSet.length() + 7) / 8;
+    *out << "#define SizeChildMapEntry " << bytePerEntry << '\n';
+    *out << "static const unsigned char ChildMap[" << strSet.size() << '*' << bytePerEntry << "] =\n{";
+    outputSize += strSet.size() * bytePerEntry * sizeof(unsigned char);
 
-    StringIntSet_t::iterator Its;
-    string Str;
-    unsigned char Buf[8];
+    string str;
+    unsigned char buf[8];
 
-    // Get the items from StrSet ordered by the index
-    StrIntPtrVect_t SetPtrs;
-    SetPtrs.resize(StrSet.size());
-    for(Its = StrSet.begin(); Its != StrSet.end(); ++Its)
+    // Get the items from strSet ordered by the index
+    StrIntPtrVect_t setPtrs(strSet.size());
+    for(auto& item : strSet)
     {
-        StringInt *p = Its->Self();
-        if (p->i >= StrSet.size())
+        StringInt *p = item.Self();
+        if (p->i >= strSet.size())
         {
-            cout << "p->i=" << p->i << "  " << p->s.c_str() << endl;
+            cout << "p->i=" << p->i << "  " << p->s << endl;
             throw "Bad index";
         }
-        SetPtrs[p->i] = p;
+        setPtrs[p->i] = p;
     }
-    unsigned int CharSetLen = 0;
+    unsigned int charSetLen = 0;
     x = 999;
-    Len = 0;
-    for(Index = 0; Index < SetPtrs.size(); ++Index)
+    len = 0;
+    for(index = 0; index < setPtrs.size(); ++index)
     {
         unsigned int i, j;
-        string::size_type z, y;
-        StringInt *p;
-        memset(Buf, 0, sizeof Buf);
+        size_t z, y;
+        memset(buf, 0, sizeof buf);
         if (x > LINE_OUT_LEN)
         {
-            *Out << "\n    ";
-            x = 4*BytePerEntry;
+            *out << "\n    ";
+            x = 4 * bytePerEntry;
         }
-        p = SetPtrs[Index];
-        Str = p->s;
-        for(z = 0; z < Str.length(); ++z)
+        StringInt *p = setPtrs[index];
+        str = p->s;
+        for(char ch : str)
         {
-            y = CharSet.find(Str[z]);
+            y = charSet.find(ch);
             if (y != string::npos)
             {
-                Buf[y/8] |= 1 << (y & 7);
+                buf[y / 8] |= 1 << (y & 7);
             }
         }
-        // Find max bits set which indicates max number chars ued at a node
-        for(i = j = 0; i < 8 * sizeof Buf; ++i)
+        // Find max bits set which indicates max number chars used at a node
+        for(i = j = 0; i < 8 * sizeof buf; ++i)
         {
-            if (Buf[i/8] & (1 << (i & 7)))
+            if (buf[i / 8] & (1 << (i & 7)))
                 ++j;
         }
-        if (j > CharSetLen)
-            CharSetLen = j;
-        for(z = 0; z < BytePerEntry; ++z)
+        if (j > charSetLen)
+            charSetLen = j;
+        for(z = 0; z < bytePerEntry; ++z)
         {
-            y = Buf[z] & 0xFF;
-            *Out << y;
-            if (z < (BytePerEntry-1))
-                *Out << ',';
+            y = buf[z] & 0xFF;
+            *out << y;
+            if (z < (bytePerEntry - 1))
+                *out << ',';
             else
             {
-                if (Index < (SetPtrs.size() - 1))
-                    *Out << ", ";
+                if (index < (setPtrs.size() - 1))
+                    *out << ", ";
             }
             if (y < 100)
-                *Out << ' ';
+                *out << ' ';
             if (y < 10)
-                *Out << ' ';
+                *out << ' ';
             x += 4;
         }
-        if (Cmnts)
+        if (cmnts)
         {
-            *Out << " // " << p->i << ": " << Str;
+            *out << " // " << p->i << ": " << str;
             x = 999;
         }
     }
-    *Out << "\n};\n#define CHARSET_SIZE " << (CharSetLen+1) << endl;
+    *out << "\n};\n#define CHARSET_SIZE " << (charSetLen + 1) << endl;
 
-    // Output the top 8 bits of the node word endings count. Since node with >255 endings have
-    // been placed at the begining, and ther are not too many of them the array is fairly small.
-    *Out << "#define NumLargeCounts " << FewEndStart << "\n";
-    *Out << "static const unsigned char EndCountLge[" << FewEndStart << "] =\n{";
-    OutputSize += FewEndStart * sizeof(unsigned char);
+    // Output the top 8 bits of the node word endings count
+    *out << "#define NumLargeCounts " << fewEndStart << "\n";
+    *out << "static const unsigned char EndCountLge[" << fewEndStart << "] =\n{";
+    outputSize += fewEndStart * sizeof(unsigned char);
     x = 999;
-    for(Index = 0; Index < FewEndStart; ++Index)
+    for(index = 0; index < fewEndStart; ++index)
     {
         unsigned int v;
         x += 4;
         if (x > LINE_OUT_LEN)
         {
-            *Out << "\n    ";
-            x=0;
+            *out << "\n    ";
+            x = 0;
         }
-        v = NodeEnds[Index] >> 8;
+        v = nodeEnds[index] >> 8;
         if (v >= 256)
             v = 0;
-        *Out << v;
-        if (Index < (FewEndStart-1))
+        *out << v;
+        if (index < (fewEndStart - 1))
         {
-            *Out << ',';
-            if (v < 100)   *Out << ' ';
-            if (v < 10)    *Out << ' ';
+            *out << ',';
+            if (v < 100)   *out << ' ';
+            if (v < 10)    *out << ' ';
         }
     }
-    *Out << "\n};\n";
+    *out << "\n};\n";
 
-    // Output all the word ending counts. For the first few nodes this is just the lower 8 bits of
-    // the value. For the rest each entry contains the whole count. The split between lower and
-    // upper halves of the value for the first few nodes allows bytes arrays to be used, so saving
-    // memory.
-    *Out << "static const unsigned char EndCountSml[" << NodeEnds.size() << "] =\n{";
-    OutputSize += NodeEnds.size() * sizeof(unsigned char);
+    // Output all the word ending counts
+    *out << "static const unsigned char EndCountSml[" << nodeEnds.size() << "] =\n{";
+    outputSize += nodeEnds.size() * sizeof(unsigned char);
     x = 999;
-    for(Index = 0; Index < NodeEnds.size(); ++Index)
+    for(index = 0; index < nodeEnds.size(); ++index)
     {
         unsigned int v;
         x += 4;
         if (x > LINE_OUT_LEN)
         {
-            *Out << "\n    ";
-            x=0;
+            *out << "\n    ";
+            x = 0;
         }
-        v = NodeEnds[Index] & 255;
-        *Out << v;
-        if (Index < (NodeEnds.size()-1))
+        v = nodeEnds[index] & 255;
+        *out << v;
+        if (index < (nodeEnds.size() - 1))
         {
-            *Out << ',';
-            if (v < 100)   *Out << ' ';
-            if (v < 10)    *Out << ' ';
+            *out << ',';
+            if (v < 100)   *out << ' ';
+            if (v < 10)    *out << ' ';
         }
     }
-    *Out << "\n};\n";
+    *out << "\n};\n";
 
-    // Finally output the used characters.
-    *Out << "static const char CharSet[" << CharSet.length()+1 << "] = \"";
-    OutputSize += CharSet.length() * sizeof(char);
-    for(Index = 0; Index < CharSet.length(); ++Index)
+    // Finally output the used characters
+    *out << "static const char CharSet[" << charSet.length() + 1 << "] = \"";
+    outputSize += charSet.length() * sizeof(char);
+    for(char c : charSet)
     {
-        char c = CharSet[Index];
         if ((c == '\\') || (c == '"'))
-            *Out << '\\';
-        *Out << c;
+            *out << '\\';
+        *out << c;
     }
-    *Out << "\";" << endl;
-    *Out << "#define ROOT_NODE_LOC " << Root->GetAddr() << "\n";
-    return OutputSize + sizeof(unsigned int);
+    *out << "\";" << endl;
+    *out << "#define ROOT_NODE_LOC " << root->GetAddr() << "\n";
+    return outputSize + sizeof(unsigned int);
 }
+
 enum { OUT_C_CODE, OUT_BINARY, OUT_TESTER };
+
 /**********************************************************************************
  */
 int main(int argc, char *argv[])
 {
-    int i;
-    int MaxRank = 999999999;
-    int OutType = OUT_C_CODE;
-    bool Verbose = false;
-    bool Comments = false;
-    string FileName, HashFile;
-    char *OutFile = 0;
-    EntryMap_t Entries;
-    FileInfo InInfo[10];
-    int NumFiles = 0;
-    MinLength = 999;
+    int maxRank = 999999999;
+    int outType = OUT_C_CODE;
+    bool verbose = false;
+    bool comments = false;
+    string fileName, hashFile;
+    char *outFile = nullptr;
+    EntryMap_t entries;
+    FileInfo inInfo[10];
+    int numFiles = 0;
 
     try
     {
-        for(i = 1; i < argc; ++i)
+        for(int i = 1; i < argc; ++i)
         {
-            FileName = argv[i];
-            if (FileName == "-b")
+            fileName = argv[i];
+            if (fileName == "-b")
             {
                 // Output a binary file to stdout or file
-                OutType = OUT_BINARY;
+                outType = OUT_BINARY;
                 continue;
             }
-            if (FileName == "-t")
+            if (fileName == "-t")
             {
                 // Output a tester file to stdout or file
-                OutType = OUT_TESTER;
+                outType = OUT_TESTER;
                 continue;
             }
-            if (FileName == "-c")
+            if (fileName == "-c")
             {
                 // Add comments to the output (if text)
-                Comments = true;
+                comments = true;
                 continue;
             }
-            if (FileName == "-o")
+            if (fileName == "-o")
             {
                 // Give output file
                 if (++i < argc)
-                    OutFile = argv[i];
+                    outFile = argv[i];
                 continue;
             }
-            if (FileName == "-h")
+            if (fileName == "-h")
             {
                 // Give crc header output file
                 if (++i < argc)
-                    HashFile = argv[i];
+                    hashFile = argv[i];
                 continue;
             }
-            if (FileName == "-r")
+            if (fileName == "-r")
             {
                 // Ignore words with too high rank
                 if (++i < argc)
                 {
-                    char *p=0;
-                    MaxRank = strtol(argv[i], &p, 0);
-                    if ((MaxRank < 1000) || *p)
-                        MaxRank = 999999999;
+                    char *p = nullptr;
+                    maxRank = strtol(argv[i], &p, 0);
+                    if ((maxRank < 1000) || *p)
+                        maxRank = 999999999;
                     continue;
                 }
             }
-            if (FileName == "-v")
+            if (fileName == "-v")
             {
-                Verbose = true;
+                verbose = true;
                 continue;
             }
-            if (FileName[0] == '-')
+            if (fileName[0] == '-')
             {
                 cerr << "Usage: " << argv[0] << " [ -c ] [ -b | -t ] [ -o Ofile ] [ -h Hfile ] Files...\n"
                         "Where:\n"
@@ -1634,137 +1574,137 @@ int main(int argc, char *argv[])
                         << endl;
                 return 1;
             }
-            ReadInputFile(FileName, InInfo[NumFiles], MaxRank);
-            if (NumFiles < int(sizeof InInfo / sizeof InInfo[0] - 1))
-                ++NumFiles;
+            ReadInputFile(fileName, inInfo[numFiles], maxRank);
+            if (numFiles < static_cast<int>(sizeof inInfo / sizeof inInfo[0] - 1))
+                ++numFiles;
         }
-        CombineWordLists(Entries, InInfo, NumFiles);
-        if (Verbose)
+        CombineWordLists(entries, inInfo, numFiles);
+        if (verbose)
         {
-            if (!OutFile && (OutType == OUT_C_CODE))
+            if (!outFile && (outType == OUT_C_CODE))
                 cout << "/*\n";
-            for(i = 0; i < NumFiles; ++i)
+            for(int i = 0; i < numFiles; ++i)
             {
-                FileInfo *Fi = InInfo + i;
-                cout << "Read input file " << Fi->Name << endl;
-                cout << "   Input words  " << Fi->Words << endl;
-                cout << "   Used words   " << Fi->Used << endl;
-                cout << "        Unused  " << Fi->BruteIgnore <<
-                        " Bruteforce compare, " << Fi->Accented <<
-                        " Accented char, " << Fi->Dups << " Duplicates" << endl;
+                FileInfo *fi = inInfo + i;
+                cout << "Read input file " << fi->Name << endl;
+                cout << "   Input words  " << fi->Words << endl;
+                cout << "   Used words   " << fi->Used << endl;
+                cout << "        Unused  " << fi->BruteIgnore <<
+                        " Bruteforce compare, " << fi->Accented <<
+                        " Accented char, " << fi->Dups << " Duplicates" << endl;
             }
         }
-        bool InputCharSet[256];
-        NodeSPtr Root(new Node);
-        // Initially charset of used chracters is empty
-        memset(InputCharSet, 0, sizeof InputCharSet);
+        bool inputCharSet[256];
+        NodeSPtr root = make_shared<Node>();
+        // Initially charset of used characters is empty
+        memset(inputCharSet, 0, sizeof inputCharSet);
 
         // Add words to the trie with root in Root
-        ProcessEntries(Root, Entries, InputCharSet);
+        ProcessEntries(root, entries, inputCharSet);
 
         // Get some interesting info
-        int NumEnds = Root->CalcEndings();
-        int Hi = Root->CalcHeight();
-        int NumNodes = Root->NodeCount();
-        if (Verbose)
+        int numEnds = root->CalcEndings();
+        int hi = root->CalcHeight();
+        int numNodes = root->NodeCount();
+        if (verbose)
         {
             cout << "Max word length = " << MaxLength << endl;
             cout << "Min word length = " << MinLength << endl;
             cout << "Num input chars = " << NumChars << endl;
             cout << "Num input words = " << NumInWords << endl;
-            cout << "Duplicate words = " << NumDuplicate;
-            cout << "Number of Ends  = " << NumEnds << endl;
-            cout << "Number of Nodes = " << NumNodes << endl;
-            cout << "Trie height = " << Hi << endl;
+            cout << "Duplicate words = " << NumDuplicate << endl;
+            cout << "Number of Ends  = " << numEnds << endl;
+            cout << "Number of Nodes = " << numNodes << endl;
+            cout << "Trie height = " << hi << endl;
         }
         // Store the alphabetical ordering of the input words
-        i = 0;
-        ScanTrieForOrder(Entries, i, Root, string());
-        if (Verbose)
+        int i = 0;
+        ScanTrieForOrder(entries, i, root, string());
+        if (verbose)
             cout << "Trie Order = " << i << endl;
-        int InputOrder = i;
+        int inputOrder = i;
         // Reduce the Trie
-        ReduceTrie(Root);
+        ReduceTrie(root);
 
         // Output some interesting information
-        NumNodes = Root->NodeCount();
-        int ReduceEnds = Root->CalcEndings();
-        if (Verbose)
+        numNodes = root->NodeCount();
+        int reduceEnds = root->CalcEndings();
+        if (verbose)
         {
             cout << "After reduce:\n";
-            cout << "Number of Ends  = " << ReduceEnds << endl;
-            cout << "Number of Nodes = " << NumNodes << endl;
+            cout << "Number of Ends  = " << reduceEnds << endl;
+            cout << "Number of Nodes = " << numNodes << endl;
         }
         // Check reduction was OK
-        StringIntVect_t Ranks;
-        int CheckEnds = CheckReduction(Ranks, Root, Entries);
-        if (Verbose)
-            cout << "Number of Words = " << CheckEnds << endl;
+        StringIntVect_t ranks;
+        int checkEnds = CheckReduction(ranks, root, entries);
+        if (verbose)
+            cout << "Number of Words = " << checkEnds << endl;
 
-        ChkNum Tst = CheckEntries(Root, string(), Entries);
-        if (Verbose)
+        ChkNum tst = CheckEntries(root, string(), entries);
+        if (verbose)
         {
-            cout << "2nd check - Number of valid words = " << Tst.Match << endl;
-            cout << "          Number of invalid words = " << Tst.Err << endl;
+            cout << "2nd check - Number of valid words = " << tst.Match << endl;
+            cout << "          Number of invalid words = " << tst.Err << endl;
         }
 
         // Give up if there was an error
-        if (Tst.Err)
+        if (tst.Err)
             throw "Checks show invalid words after reduction";
-        if ((Tst.Match != InputOrder) || (ReduceEnds != InputOrder))
+        if ((tst.Match != inputOrder) || (reduceEnds != inputOrder))
             throw "Word count changed after reduce";
 
         // Output more info
-        StringIntSet_t ChildBits;
-        string CharSet = MakeCharSet(InputCharSet);
-        if (Verbose)
-            cout << "Used characters (" << CharSet.length() << "): " << CharSet.c_str() << endl;
+        StringIntSet_t childBits;
+        string charSet = MakeCharSet(inputCharSet);
+        if (verbose)
+            cout << "Used characters (" << charSet.length() << "): " << charSet << endl;
 
         // Make a set of all unique child character patterns for the nodes
-        i=0;
-        Root->ClearCounted();
-        MakeChildBitMap(ChildBits, Root, i);
-        if (Verbose)
-            cout << "Number of child bitmaps = " << ChildBits.size() << endl;
+        i = 0;
+        root->ClearCounted();
+        MakeChildBitMap(childBits, root, i);
+        if (verbose)
+            cout << "Number of child bitmaps = " << childBits.size() << endl;
 
         // Get final node address
-        Root->CalcAddress();
+        root->CalcAddress();
 
-        Uint64Vect NodeData;
-        UintVect NodeEnds;
-        StringOfInts ChildAddrs;
+        Uint64Vect nodeData;
+        UintVect nodeEnds;
+        StringOfInts childAddrs;
 
         // Resize to save library adjusting allocation during data creation
-        NodeData.resize(NumNodes, 4000000000);
-        NodeEnds.resize(NumNodes, 4000000000);
-        CreateArrays(Root, ChildBits, ChildAddrs, NodeData, NodeEnds);
-        if (Verbose)
+        nodeData.resize(numNodes, 4000000000);
+        nodeEnds.resize(numNodes, 4000000000);
+        CreateArrays(root, childBits, childAddrs, nodeData, nodeEnds);
+        if (verbose)
         {
-            cout << "Node data array size " << NodeData.size() << endl;
-            cout << "Child pointer array size " << ChildAddrs.size() << endl;
+            cout << "Node data array size " << nodeData.size() << endl;
+            cout << "Child pointer array size " << childAddrs.size() << endl;
             cout << "Max node childs " << MaxNumChilds <<  " (chars " << MaxChildChars << " ) at character index "
-                 << MaxChildsPosn << " using password " << PassWithMaxChilds.c_str() << endl;
+                 << MaxChildsPosn << " using password " << PassWithMaxChilds << endl;
         }
         shared_ptr<ofstream> fout;
-        ostream *Out = &cout;
-        if (OutFile)
+        ostream *out = &cout;
+        if (outFile)
         {
-            fout = shared_ptr<ofstream>(new ofstream);
-            if (OutType == OUT_BINARY)
-                fout->open(OutFile, ios_base::trunc | ios_base::binary);
+            fout = make_shared<ofstream>();
+            if (outType == OUT_BINARY)
+                fout->open(outFile, ios_base::trunc | ios_base::binary);
             else
-                fout->open(OutFile, ios_base::trunc);
-            Out = fout.get();
+                fout->open(outFile, ios_base::trunc);
+            out = fout.get();
         }
-        if (!OutFile && (OutType == OUT_C_CODE))
+        if (!outFile && (outType == OUT_C_CODE))
             cout << "*/\n";
 
-        if (OutType == OUT_BINARY)
-            i = OutputBinary(Out, HashFile, CharSet, ChildBits, ChildAddrs, NodeData, NodeEnds, Ranks);
-        else if (OutType == OUT_TESTER)
-            i = OutputTester(Out, Comments, Ranks);
+        if (outType == OUT_BINARY)
+            i = OutputBinary(out, hashFile, charSet, childBits, childAddrs, nodeData, nodeEnds, ranks);
+        else if (outType == OUT_TESTER)
+            i = OutputTester(out, comments, ranks);
         else
-            i = OutputCode(Out, Comments, CharSet, ChildBits, Root, ChildAddrs, NodeData, NodeEnds, Ranks);
+            i = OutputCode(out, comments, charSet, childBits, root, childAddrs, nodeData, nodeEnds, ranks);
 
         if (fout)
         {
@@ -1778,7 +1718,7 @@ int main(int argc, char *argv[])
     }
     catch(string m)
     {
-        cerr << m.c_str() << endl;
+        cerr << m << endl;
         return 1;
     }
     catch(...)
