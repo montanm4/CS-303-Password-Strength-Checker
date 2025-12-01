@@ -10,7 +10,7 @@
 A password is strong if all above conditions are met, moderate if the first three conditions are met and has a length of at least 6 characters, otherwise it is considered weak
 
 
-# Resources used:
+# Resources used
 [zxcvb-c](https://github.com/tsyrogit/zxcvbn-c)
 
 [zxcvbn](https://github.com/dropbox/zxcvbn)
@@ -20,3 +20,6 @@ A password is strong if all above conditions are met, moderate if the first thre
 [program-check-strength-password](https://www.geeksforgeeks.org/dsa/program-check-strength-password/)
 
 [The MIT Lisence](https://opensource.org/license/mit)
+
+# Comments
+### All files were either directly copied from the linked Github repos or copied and modified to fit a C++ code format
