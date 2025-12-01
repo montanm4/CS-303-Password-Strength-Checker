@@ -20,7 +20,7 @@ add_custom_command(OUTPUT dict-src.h COMMAND dictgen -o ${CMAKE_CURRENT_BINARY_D
 add_custom_command(OUTPUT dict-crc.h zxcvbn.dict COMMAND dictgen -b -o ${CMAKE_CURRENT_BINARY_DIR}/zxcvbn.dict -h ${CMAKE_CURRENT_BINARY_DIR}/dict-crc.h ${WORDS} DEPENDS dictgen ${WORDS} COMMENT "Generating dict-crc.h")
 
 # build shared version of library
-add_library(zxcvbn-shared SHARED zxcvbn.c dict-crc.h dict-src.h)
+add_library(zxcvbn-shared SHARED zxcvbn.cpp dict-crc.h dict-src.h)
 target_include_directories(zxcvbn-shared PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(zxcvbn-shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(zxcvbn-shared PUBLIC ${LIBM})
@@ -32,7 +32,7 @@ set_target_properties(zxcvbn-shared PROPERTIES
 )
 
 # build static version of library
-add_library(zxcvbn-static STATIC zxcvbn.c dict-crc.h dict-src.h)
+add_library(zxcvbn-static STATIC zxcvbn.cpp dict-crc.h dict-src.h)
 target_include_directories(zxcvbn-static PRIVATE ${CMAKE_CURRENT_BINARY_DIR} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(zxcvbn-static PUBLIC ${LIBM})
 set_target_properties(zxcvbn-static PROPERTIES OUTPUT_NAME zxcvbn)
@@ -41,22 +41,22 @@ set_target_properties(zxcvbn-static PROPERTIES OUTPUT_NAME zxcvbn)
 if(PROJECT_IS_TOP_LEVEL)
 
 	# C tests
-	add_executable(test-internals test-internals.c dict-src.h dict-crc.h zxcvbn.h)
+	add_executable(test-internals test-internals.cpp dict-src.h dict-crc.h zxcvbn.h)
 	target_include_directories(test-internals PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 	target_link_libraries(test-internals PUBLIC ${LIBM})
 	
-	add_executable(test-file test.c zxcvbn.c dict-src.h dict-crc.h zxcvbn.h)
+	add_executable(test-file test.cpp zxcvbn.cpp dict-src.h dict-crc.h zxcvbn.h)
 	target_compile_definitions(test-file PRIVATE USE_DICT_FILE)
 	target_include_directories(test-file PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 	target_link_libraries(test-file PUBLIC ${LIBM})
 	
-	add_executable(test-inline test.c zxcvbn.c dict-src.h dict-crc.h zxcvbn.h)
+	add_executable(test-inline test.cpp zxcvbn.cpp dict-src.h dict-crc.h zxcvbn.h)
 	target_include_directories(test-inline PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 	target_link_libraries(test-inline PUBLIC ${LIBM})
 	
 	# C++ tests
-	file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/zxcvbn.c ${CMAKE_CURRENT_BINARY_DIR}/zxcvbn.cpp SYMBOLIC)
-	file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/test.c ${CMAKE_CURRENT_BINARY_DIR}/test.cpp SYMBOLIC)
+	file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/zxcvbn.cpp ${CMAKE_CURRENT_BINARY_DIR}/zxcvbn.cpp SYMBOLIC)
+	file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/test.cpp ${CMAKE_CURRENT_BINARY_DIR}/test.cpp SYMBOLIC)
 	
 	add_executable(test-c++file ${CMAKE_CURRENT_BINARY_DIR}/test.cpp ${CMAKE_CURRENT_BINARY_DIR}/zxcvbn.cpp dict-src.h dict-crc.h zxcvbn.h)
 	target_compile_definitions(test-c++file PRIVATE USE_DICT_FILE)
@@ -68,10 +68,10 @@ if(PROJECT_IS_TOP_LEVEL)
 	target_link_libraries(test-c++inline PUBLIC ${LIBM})
 	
 	# libraries tests
-	add_executable(test-shlib test.c)
+	add_executable(test-shlib test.cpp)
 	target_link_libraries(test-shlib zxcvbn-shared)
 	
-	add_executable(test-statlib test.c)
+	add_executable(test-statlib test.cpp)
 	target_link_libraries(test-statlib zxcvbn-static)
 	
 	# test target  
