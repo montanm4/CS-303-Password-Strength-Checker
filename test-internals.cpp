@@ -1,6 +1,9 @@
 #include "zxcvbn.h"
 #include "zxcvbn.cpp"
 
+#include <iostream>
+#include <cstring>
+#include <cstdint>
 
 /**********************************************************************************
  * Internal checks: Validate if the first element of each group is sorted in
@@ -8,131 +11,149 @@
  * Returns 0 on success.
  * Returns element index [1..] of first error entry that is less than previous one.
  */
-static int check_order(const uint8_t *Ents, unsigned int NumEnts, unsigned int SizeEnts) {
-  const uint8_t *last;
-  unsigned int i;
+static int check_order(const uint8_t *entries, unsigned int numEntries, unsigned int sizeEntries) {
+    const uint8_t *last = nullptr;
 
-  if (!Ents) return 0;
-  last = 0;
+    if (!entries) return 0;
 
-  for (i = 0; i < NumEnts; ++i, Ents += SizeEnts) {
-    if (last  &&  *last > *Ents) {
-      unsigned int j;
+    for (unsigned int i = 0; i < numEntries; ++i, entries += sizeEntries) {
+        if (last && *last > *entries) {
+            std::cout << "Entry#" << i << " [" << (i * sizeEntries) << "]:  '"
+                      << static_cast<char>(*last) << "' > '" << static_cast<char>(*entries)
+                      << "'  (0x" << std::hex << static_cast<int>(*last) 
+                      << " > 0x" << static_cast<int>(*entries) << std::dec << ")\n    A:  ";
+            
+            for (unsigned int j = 0; j < sizeEntries; ++j) {
+                std::cout << "'" << (last[j] ? static_cast<char>(last[j]) : ' ') << "' ";
+            }
+            std::cout << "\n    >\n    B:  ";
+            
+            for (unsigned int j = 0; j < sizeEntries; ++j) {
+                std::cout << "'" << (entries[j] ? static_cast<char>(entries[j]) : ' ') << "' ";
+            }
+            std::cout << std::endl;
 
-      printf("Entry#%d [%d]:  '%c' > '%c'  (0x%02X > 0x%02X)\n    A:  ", i, i * SizeEnts, *last, *Ents, *last, *Ents);
-      for (j = 0; j < SizeEnts; ++j) {
-        printf("'%c' ", last[j] ? last[j] : ' ');
-      }
-      printf("\n    >\n    B:  ");
-      for (j = 0; j < SizeEnts; ++j) {
-        printf("'%c' ", Ents[j] ? Ents[j] : ' ');
-      }
-      printf("\n");
-
-      return i;
+            return i;
+        }
+        last = entries;
     }
-    last = Ents;
-  }
 
-  return 0; /* cannot be a misordered position; first possible one: 1 */
+    return 0; /* cannot be a misordered position; first possible one: 1 */
 }
 
 /**********************************************************************************
  * Internal checks: Checks keyboard data integrity.
- * Returns 0 on succes.
+ * Returns 0 on success.
  * Otherwise, number of errors are reported.
  */
 static unsigned int selftest_keyboards() {
-  unsigned int errors;
-  const Keyboard_t *k;
-  unsigned int Indx;
-  const uint8_t *keys;
-  int i,j,errpos, blanks;
+    unsigned int errors = 0;
+    const Keyboard_t *k;
+    unsigned int indx;
 
-  errors = 0;
-  for(k = Keyboards, Indx = 0; Indx < (sizeof Keyboards / sizeof Keyboards[0]); ++Indx, ++k) {
-    /* if one of these assrtion fails, we cannot use binary search algorithm */
-    if (k->Shifts  &&  strlen((const char*)k->Shifts) % 2 == 1) {
-      printf("Error: Keyboard[%d]: Shifts-string has odd number of entries\n", Indx);
-      ++errors;
-    }
-
-    if ( (errpos = check_order(k->Shifts, k->NumShift, 2)) ) {
-      printf("Error: Keyboard[%d]: Error above in sort order of Shifts-string near item #%d\n", Indx, errpos);
-      ++errors;
-    }
-
-    if ( (errpos = check_order(k->Keys, k->NumKeys, k->NumNear)) ) {
-      printf("Error: Keyboard[%d]: Error above in sort order of keyboard-entries! Problem near item #%d\n", Indx, errpos);
-      ++errors;
-      continue;
-    }
-
-    /* For each key (c0), check all its neighbours (ci):
-     * Does the neighbour key (c1==ci) have an entry (cx) in the opposite direction [rev_idx]
-     * pointing back to the current key c0?
-     * c0: ...ci..   -->   c1: ..cx...   -->   cx==c0?
-     */
-    keys = k->Keys;
-    blanks = 0;
-    for(i = 0; i < k->NumKeys; ++i) {
-      uint8_t c0;
-      c0 = keys[i * k->NumNear];
-
-      for (j = 0; j < k->NumNear - 1; ++j) {
-        const uint8_t *c1;
-        uint8_t ci, cx;
-        int rev_idx;
-
-        /* rev_idx: reverse/opposite index to find opposite key location [0..6|8] --> [0..6|8] */
-        rev_idx = (j + (k->NumNear - 1)/2) % (k->NumNear - 1);
-        ci = keys[i * k->NumNear + j + 1];
-
-        if (ci) {
-          c1 = CharBinSearch(ci, keys, k->NumKeys, k->NumNear);
-          if (c1) {
-            if (ci == c0) {
-              printf("Error: Keyboard[%d]:  recursion - key '%c' cannot be its own neighbour\n", Indx, *c1);
-              ++errors;
-            } else {
-              if ( (cx = c1[ 1 + rev_idx ]) ) {
-                if ( cx != c0 ) {
-                  printf("Error: Keyboard[%d]:  c0='%c':...(ci=%c)... ->  c1='%c':...(cx=%c)... --!--> c0='%c':... \n",
-                         Indx, c0, ci, *c1, cx, c0);
-                  ++errors;
-                }
-              } else { /* reverse pointer is NULL */
-                printf("Error: Keyboard[%d]:  reverse entry missing in row c1='%c'[%d] pointing back to c0='%c'!\n", Indx, *c1, 1+rev_idx, c0);
-                ++errors;
-              }
-            }
-          } else {
-            printf("Error: Keyboard[%d]:  no entry (neighbour list) found for src-char c1==ci='%c'\n", Indx, ci);
+    for (k = Keyboards, indx = 0; indx < (sizeof Keyboards / sizeof Keyboards[0]); ++indx, ++k) {
+        /* if one of these assertions fails, we cannot use binary search algorithm */
+        if (k->Shifts && std::strlen(reinterpret_cast<const char*>(k->Shifts)) % 2 == 1) {
+            std::cout << "Error: Keyboard[" << indx 
+                      << "]: Shifts-string has odd number of entries" << std::endl;
             ++errors;
-          }
-        } else { /* blank neighbour key reference found */
-          ++blanks;
         }
-      }
+
+        int errPos;
+        if ((errPos = check_order(k->Shifts, k->NumShift, 2))) {
+            std::cout << "Error: Keyboard[" << indx 
+                      << "]: Error above in sort order of Shifts-string near item #" 
+                      << errPos << std::endl;
+            ++errors;
+        }
+
+        if ((errPos = check_order(k->Keys, k->NumKeys, k->NumNear))) {
+            std::cout << "Error: Keyboard[" << indx 
+                      << "]: Error above in sort order of keyboard-entries! Problem near item #" 
+                      << errPos << std::endl;
+            ++errors;
+            continue;
+        }
+
+        /* For each key (c0), check all its neighbours (ci):
+         * Does the neighbour key (c1==ci) have an entry (cx) in the opposite direction [rev_idx]
+         * pointing back to the current key c0?
+         * c0: ...ci..   -->   c1: ..cx...   -->   cx==c0?
+         */
+        const uint8_t *keys = k->Keys;
+        int blanks = 0;
+        
+        for (int i = 0; i < k->NumKeys; ++i) {
+            uint8_t c0 = keys[i * k->NumNear];
+
+            for (int j = 0; j < k->NumNear - 1; ++j) {
+                /* rev_idx: reverse/opposite index to find opposite key location [0..6|8] --> [0..6|8] */
+                int revIdx = (j + (k->NumNear - 1) / 2) % (k->NumNear - 1);
+                uint8_t ci = keys[i * k->NumNear + j + 1];
+
+                if (ci) {
+                    const uint8_t *c1 = CharBinSearch(ci, keys, k->NumKeys, k->NumNear);
+                    
+                    if (c1) {
+                        if (ci == c0) {
+                            std::cout << "Error: Keyboard[" << indx 
+                                      << "]:  recursion - key '" << static_cast<char>(*c1) 
+                                      << "' cannot be its own neighbour" << std::endl;
+                            ++errors;
+                        } else {
+                            uint8_t cx = c1[1 + revIdx];
+                            
+                            if (cx) {
+                                if (cx != c0) {
+                                    std::cout << "Error: Keyboard[" << indx 
+                                              << "]:  c0='" << static_cast<char>(c0) 
+                                              << "':...(ci=" << static_cast<char>(ci) 
+                                              << ")... ->  c1='" << static_cast<char>(*c1) 
+                                              << "':...(cx=" << static_cast<char>(cx) 
+                                              << ")... --!--> c0='" << static_cast<char>(c0) 
+                                              << "':... " << std::endl;
+                                    ++errors;
+                                }
+                            } else { /* reverse pointer is NULL */
+                                std::cout << "Error: Keyboard[" << indx 
+                                          << "]:  reverse entry missing in row c1='" 
+                                          << static_cast<char>(*c1) << "'[" << (1 + revIdx) 
+                                          << "] pointing back to c0='" << static_cast<char>(c0) 
+                                          << "'!" << std::endl;
+                                ++errors;
+                            }
+                        }
+                    } else {
+                        std::cout << "Error: Keyboard[" << indx 
+                                  << "]:  no entry (neighbour list) found for src-char c1==ci='" 
+                                  << static_cast<char>(ci) << "'" << std::endl;
+                        ++errors;
+                    }
+                } else { /* blank neighbour key reference found */
+                    ++blanks;
+                }
+            }
+        }
+        
+        if (blanks != k->NumBlank) {
+            std::cout << "Error: Keyboard[" << indx 
+                      << "]:  number of blank keys announced (" << k->NumBlank 
+                      << ") does not match number of blank keys counted (" << blanks 
+                      << ")" << std::endl;
+            ++errors;
+        }
     }
-    if (blanks != k->NumBlank) {
-      printf("Error: Keyboard[%d]:  number of blank keys announced (%d) does not match number of blank keys counted (%d)\n",
-             Indx, k->NumBlank, blanks);
-      ++errors;
-    }
-  }
-  return errors;
+    
+    return errors;
 }
 
-
-
-
 int main() {
-  unsigned int errors;
+    unsigned int errors = selftest_keyboards(); /* currently only these */
+    
+    if (errors) {
+        std::cout << "Failed: [KEYBOARDS] - selftest returned " << errors 
+                  << " error(s)." << std::endl;
+    }
 
-  if( (errors = selftest_keyboards()) ){  /* currently only these */
-    printf("Failed: [KEYBOARDS] - selftest returned %d error(s).\n", errors);
-  }
-
-  return errors ? 1 : 0;
+    return errors ? 1 : 0;
 }
